@@ -42,5 +42,6 @@ export function calculateRunway(
     month = addMonth(month);
   }
 
-  return { months, runwayMonths: months.length };
+  const runwayMonths = months.filter((m) => m.closingBalance >= 0).length;
+  return { months, runwayMonths };
 }
