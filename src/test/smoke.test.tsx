@@ -2,11 +2,11 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import App from "../App";
 
-it("renders without crashing", () => {
+it("renders the setup wizard on first load", () => {
   render(
     <MemoryRouter>
       <App />
     </MemoryRouter>,
   );
-  expect(screen.getByText("Expendito")).toBeInTheDocument();
+  expect(screen.getByText("Welcome to Expendito")).toBeInTheDocument();
 });

@@ -1,12 +1,20 @@
 import { Routes, Route } from "react-router-dom";
 import Nav from "./components/Nav";
+import SetupWizard from "./components/SetupWizard";
 import Dashboard from "./routes/Dashboard";
 import MonthArchive from "./routes/MonthArchive";
 import Month from "./routes/Month";
 import Categories from "./routes/Categories";
 import Settings from "./routes/Settings";
+import { useStore } from "./store";
 
 export default function App() {
+  const wizardCompleted = useStore((s) => s.wizardCompleted);
+
+  if (!wizardCompleted) {
+    return <SetupWizard />;
+  }
+
   return (
     <div className="min-h-screen bg-white text-gray-900">
       <Nav />

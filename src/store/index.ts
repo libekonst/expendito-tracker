@@ -9,6 +9,12 @@ type State = {
   entries: Entry[];
   settings: Settings;
   storageUnavailable: boolean;
+  wizardCompleted: boolean;
+};
+
+type WizardPayload = {
+  settings: Settings;
+  categories: Omit<Category, "id">[];
 };
 
 type Actions = {
@@ -19,6 +25,7 @@ type Actions = {
   updateEntry: (id: string, patch: Partial<Omit<Entry, "id">>) => void;
   deleteEntry: (id: string) => void;
   updateSettings: (patch: Partial<Settings>) => void;
+  completeWizard: (payload: WizardPayload) => void;
 };
 
 export type Store = State & Actions;
@@ -53,6 +60,7 @@ export function createStore() {
         entries: [],
         settings: defaultSettings,
         storageUnavailable: !storageAvailable,
+        wizardCompleted: false,
 
         addCategory: (cat) =>
           set((s) => ({ categories: [...s.categories, { id: nanoid(), ...cat }] })),
@@ -81,6 +89,13 @@ export function createStore() {
 
         updateSettings: (patch) =>
           set((s) => ({ settings: { ...s.settings, ...patch } })),
+
+        completeWizard: ({ settings, categories }) =>
+          set({
+            settings,
+            categories: categories.map((c) => ({ id: nanoid(), ...c })),
+            wizardCompleted: true,
+          }),
       }),
       {
         name: "expendito-v1",
