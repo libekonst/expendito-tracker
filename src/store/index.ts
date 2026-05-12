@@ -10,6 +10,7 @@ type State = {
   settings: Settings;
   storageUnavailable: boolean;
   wizardCompleted: boolean;
+  _hasHydrated: boolean;
 };
 
 type WizardPayload = {
@@ -62,6 +63,7 @@ export function createStore() {
         settings: defaultSettings,
         storageUnavailable: !storageAvailable,
         wizardCompleted: false,
+        _hasHydrated: false,
 
         addCategory: (cat) =>
           set((s) => ({ categories: [...s.categories, { id: nanoid(), ...cat }] })),
@@ -104,6 +106,14 @@ export function createStore() {
       {
         name: "expendito-v1",
         storage: createJSONStorage(() => localStorage),
+        partialize: (s) => {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { _hasHydrated, storageUnavailable, ...persisted } = s;
+          return persisted;
+        },
+        onRehydrateStorage: () => (state) => {
+          if (state) state._hasHydrated = true;
+        },
       },
     ),
   );

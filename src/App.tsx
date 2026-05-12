@@ -9,7 +9,10 @@ import Settings from "./routes/Settings";
 import { useStore } from "./store";
 
 export default function App() {
+  const hasHydrated = useStore((s) => s._hasHydrated);
   const wizardCompleted = useStore((s) => s.wizardCompleted);
+
+  if (!hasHydrated) return null;
 
   if (!wizardCompleted) {
     return <SetupWizard />;
