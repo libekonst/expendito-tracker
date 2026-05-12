@@ -26,6 +26,7 @@ type Actions = {
   deleteEntry: (id: string) => void;
   updateSettings: (patch: Partial<Settings>) => void;
   completeWizard: (payload: WizardPayload) => void;
+  importAll: (payload: { categories: Category[]; entries: Entry[]; settings: Settings }) => void;
 };
 
 export type Store = State & Actions;
@@ -96,6 +97,9 @@ export function createStore() {
             categories: categories.map((c) => ({ id: nanoid(), ...c })),
             wizardCompleted: true,
           }),
+
+        importAll: (payload: { categories: Category[]; entries: Entry[]; settings: Settings }) =>
+          set({ ...payload, wizardCompleted: true }),
       }),
       {
         name: "expendito-v1",
