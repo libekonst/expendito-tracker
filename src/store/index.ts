@@ -97,3 +97,8 @@ export function selectRunwayProjection(state: Store): RunwayResult {
 
 // Singleton store for the app
 export const store = createStore();
+
+// React hook
+import { useStore as useZustandStore } from "zustand";
+export const useStore = <T>(selector: (state: Store) => T): T =>
+  useZustandStore(store, selector);
