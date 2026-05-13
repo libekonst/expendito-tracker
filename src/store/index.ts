@@ -10,7 +10,6 @@ type State = {
   settings: Settings;
   storageUnavailable: boolean;
   wizardCompleted: boolean;
-  _hasHydrated: boolean;
 };
 
 type WizardPayload = {
@@ -52,18 +51,35 @@ const defaultSettings: Settings = {
   startingMonth: currentMonth(),
 };
 
+type PersistedSlice = {
+  categories?: Category[];
+  entries?: Entry[];
+  settings?: Settings;
+  wizardCompleted?: boolean;
+};
+
+function loadPersistedState(): PersistedSlice {
+  try {
+    const raw = localStorage.getItem("expendito-v1");
+    if (!raw) return {};
+    return (JSON.parse(raw) as { state?: PersistedSlice }).state ?? {};
+  } catch {
+    return {};
+  }
+}
+
 export function createStore() {
   const storageAvailable = isStorageAvailable();
+  const persisted = loadPersistedState();
 
   return createZustandStore<Store>()(
     persist(
       (set) => ({
-        categories: [],
-        entries: [],
-        settings: defaultSettings,
+        categories: persisted.categories ?? [],
+        entries: persisted.entries ?? [],
+        settings: persisted.settings ?? defaultSettings,
         storageUnavailable: !storageAvailable,
-        wizardCompleted: false,
-        _hasHydrated: false,
+        wizardCompleted: persisted.wizardCompleted ?? false,
 
         addCategory: (cat) =>
           set((s) => ({ categories: [...s.categories, { id: nanoid(), ...cat }] })),
@@ -106,14 +122,12 @@ export function createStore() {
       {
         name: "expendito-v1",
         storage: createJSONStorage(() => localStorage),
-        partialize: (s) => {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { _hasHydrated, storageUnavailable, ...persisted } = s;
-          return persisted;
-        },
-        onRehydrateStorage: () => (state) => {
-          if (state) state._hasHydrated = true;
-        },
+        partialize: (s) => ({
+          categories: s.categories,
+          entries: s.entries,
+          settings: s.settings,
+          wizardCompleted: s.wizardCompleted,
+        }),
       },
     ),
   );
