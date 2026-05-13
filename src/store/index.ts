@@ -1,5 +1,4 @@
 import { createStore as createZustandStore } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
 import { nanoid } from "nanoid";
 import type { Category, Entry, Settings, RunwayResult } from "../domain/types";
 import { calculateRunway } from "../domain/runwayEngine";
@@ -31,19 +30,10 @@ type Actions = {
 
 export type Store = State & Actions;
 
+const STORAGE_KEY = "expendito-v1";
+
 function currentMonth(): string {
   return new Date().toISOString().slice(0, 7);
-}
-
-function isStorageAvailable(): boolean {
-  try {
-    const key = "__expendito_test__";
-    localStorage.setItem(key, "1");
-    localStorage.removeItem(key);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 const defaultSettings: Settings = {
@@ -60,7 +50,7 @@ type PersistedSlice = {
 
 function loadPersistedState(): PersistedSlice {
   try {
-    const raw = localStorage.getItem("expendito-v1");
+    const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return {};
     return (JSON.parse(raw) as { state?: PersistedSlice }).state ?? {};
   } catch {
@@ -68,69 +58,89 @@ function loadPersistedState(): PersistedSlice {
   }
 }
 
+function saveState(state: State): void {
+  try {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        state: {
+          categories: state.categories,
+          entries: state.entries,
+          settings: state.settings,
+          wizardCompleted: state.wizardCompleted,
+        },
+      }),
+    );
+  } catch {
+    // ignore write errors (e.g. private browsing quota)
+  }
+}
+
+function isStorageAvailable(): boolean {
+  try {
+    localStorage.setItem(STORAGE_KEY + "_test", "1");
+    localStorage.removeItem(STORAGE_KEY + "_test");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function createStore() {
   const storageAvailable = isStorageAvailable();
-  const persisted = loadPersistedState();
+  const persisted = storageAvailable ? loadPersistedState() : {};
 
-  return createZustandStore<Store>()(
-    persist(
-      (set) => ({
-        categories: persisted.categories ?? [],
-        entries: persisted.entries ?? [],
-        settings: persisted.settings ?? defaultSettings,
-        storageUnavailable: !storageAvailable,
-        wizardCompleted: persisted.wizardCompleted ?? false,
+  const s = createZustandStore<Store>()((set) => ({
+    categories: persisted.categories ?? [],
+    entries: persisted.entries ?? [],
+    settings: persisted.settings ?? defaultSettings,
+    storageUnavailable: !storageAvailable,
+    wizardCompleted: persisted.wizardCompleted ?? false,
 
-        addCategory: (cat) =>
-          set((s) => ({ categories: [...s.categories, { id: nanoid(), ...cat }] })),
+    addCategory: (cat) =>
+      set((s) => ({ categories: [...s.categories, { id: nanoid(), ...cat }] })),
 
-        updateCategory: (id, patch) =>
-          set((s) => ({
-            categories: s.categories.map((c) => (c.id === id ? { ...c, ...patch } : c)),
-          })),
+    updateCategory: (id, patch) =>
+      set((s) => ({
+        categories: s.categories.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+      })),
 
-        deleteCategory: (id) =>
-          set((s) => ({
-            categories: s.categories.filter((c) => c.id !== id),
-            entries: s.entries.filter((e) => e.categoryId !== id),
-          })),
+    deleteCategory: (id) =>
+      set((s) => ({
+        categories: s.categories.filter((c) => c.id !== id),
+        entries: s.entries.filter((e) => e.categoryId !== id),
+      })),
 
-        addEntry: (entry) =>
-          set((s) => ({ entries: [...s.entries, { id: nanoid(), ...entry }] })),
+    addEntry: (entry) =>
+      set((s) => ({ entries: [...s.entries, { id: nanoid(), ...entry }] })),
 
-        updateEntry: (id, patch) =>
-          set((s) => ({
-            entries: s.entries.map((e) => (e.id === id ? { ...e, ...patch } : e)),
-          })),
+    updateEntry: (id, patch) =>
+      set((s) => ({
+        entries: s.entries.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+      })),
 
-        deleteEntry: (id) =>
-          set((s) => ({ entries: s.entries.filter((e) => e.id !== id) })),
+    deleteEntry: (id) =>
+      set((s) => ({ entries: s.entries.filter((e) => e.id !== id) })),
 
-        updateSettings: (patch) =>
-          set((s) => ({ settings: { ...s.settings, ...patch } })),
+    updateSettings: (patch) =>
+      set((s) => ({ settings: { ...s.settings, ...patch } })),
 
-        completeWizard: ({ settings, categories }) =>
-          set({
-            settings,
-            categories: categories.map((c) => ({ id: nanoid(), ...c })),
-            wizardCompleted: true,
-          }),
-
-        importAll: (payload: { categories: Category[]; entries: Entry[]; settings: Settings }) =>
-          set({ ...payload, wizardCompleted: true }),
+    completeWizard: ({ settings, categories }) =>
+      set({
+        settings,
+        categories: categories.map((c) => ({ id: nanoid(), ...c })),
+        wizardCompleted: true,
       }),
-      {
-        name: "expendito-v1",
-        storage: createJSONStorage(() => localStorage),
-        partialize: (s) => ({
-          categories: s.categories,
-          entries: s.entries,
-          settings: s.settings,
-          wizardCompleted: s.wizardCompleted,
-        }),
-      },
-    ),
-  );
+
+    importAll: (payload: { categories: Category[]; entries: Entry[]; settings: Settings }) =>
+      set({ ...payload, wizardCompleted: true }),
+  }));
+
+  if (storageAvailable) {
+    s.subscribe((state) => saveState(state));
+  }
+
+  return s;
 }
 
 /** Derives the runway projection from current store state. Use as a Zustand selector. */
