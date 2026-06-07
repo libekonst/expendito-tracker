@@ -6,5 +6,6 @@ export function resolveAmount(category: Category, month: string): number {
     b.from.localeCompare(a.from),
   );
   const match = sorted.find((p) => p.from <= month);
-  return match?.amount ?? 0;
+  // Fall back to the earliest known amount when the month precedes all from dates
+  return match?.amount ?? sorted[sorted.length - 1]?.amount ?? 0;
 }

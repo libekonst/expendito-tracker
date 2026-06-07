@@ -14,9 +14,9 @@ describe("resolveAmount", () => {
     expect(resolveAmount(expense([]), "2026-05")).toBe(0);
   });
 
-  it("returns 0 when queried month is before all planned amounts", () => {
+  it("returns the earliest known amount when queried month is before all planned amounts", () => {
     const cat = expense([{ amount: 500, from: "2026-03" }]);
-    expect(resolveAmount(cat, "2026-02")).toBe(0);
+    expect(resolveAmount(cat, "2026-02")).toBe(500);
   });
 
   it("returns the amount whose from equals the queried month", () => {
