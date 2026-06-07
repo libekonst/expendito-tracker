@@ -17,3 +17,4 @@ dist
 
 # Editor
 .DS_Store
+.playwright-mcp/
