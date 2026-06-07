@@ -138,6 +138,7 @@ export default function Dashboard() {
         <MonthDetail
           month={cm}
           isCurrentMonth={true}
+          actualsOnly={isFutureStart}
           openingBalance={
             runway.months.find((m) => m.month === cm)?.openingBalance ??
             settings.startingBalance

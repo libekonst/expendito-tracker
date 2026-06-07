@@ -7,6 +7,9 @@ type Params = {
   entries: Entry[];
   openingBalance: number;
   isCurrentMonth: boolean;
+  // When true, use only logged actuals — suppresses planned minimums and projection.
+  // Used for waiting-period months (current calendar month before startingMonth).
+  actualsOnly?: boolean;
 };
 
 /** Projects a MonthSummary for any month — past, current, or future. */
@@ -16,9 +19,10 @@ export function projectMonth({
   entries,
   openingBalance,
   isCurrentMonth,
+  actualsOnly = false,
 }: Params): MonthSummary {
   const hasEntries = entries.length > 0;
-  const isProjected = !isCurrentMonth && !hasEntries;
+  const isProjected = !actualsOnly && !isCurrentMonth && !hasEntries;
 
   const summarize = (cat: Category): CategorySummary => {
     const planned = resolveAmount(cat, month);
@@ -29,7 +33,7 @@ export function projectMonth({
     let actual: number;
     if (isProjected) {
       actual = planned;
-    } else if (isCurrentMonth) {
+    } else if (isCurrentMonth && !actualsOnly) {
       actual = cat.type === "expense" ? Math.max(actualLogged, planned) : actualLogged;
     } else {
       actual = actualLogged;

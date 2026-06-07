@@ -20,9 +20,9 @@ type QuickAddState = {
 
 type EditState = QuickAddState & { id: string };
 
-type Props = { month: string; isCurrentMonth: boolean; openingBalance: number };
+type Props = { month: string; isCurrentMonth: boolean; openingBalance: number; actualsOnly?: boolean };
 
-export default function MonthDetail({ month, isCurrentMonth, openingBalance }: Props) {
+export default function MonthDetail({ month, isCurrentMonth, openingBalance, actualsOnly = false }: Props) {
   const categories = useStore((s) => s.categories);
   const allEntries = useStore((s) => s.entries);
   const addEntry = useStore((s) => s.addEntry);
@@ -37,6 +37,7 @@ export default function MonthDetail({ month, isCurrentMonth, openingBalance }: P
     entries: monthEntries,
     openingBalance,
     isCurrentMonth,
+    actualsOnly,
   });
 
   const defaultDate = isCurrentMonth ? today() : `${month}-01`;
