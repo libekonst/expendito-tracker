@@ -1,10 +1,8 @@
 import { NavLink } from "react-router-dom";
 
-const currentMonth = new Date().toISOString().slice(0, 7);
-
 const links = [
   { to: "/", label: "Dashboard", end: true },
-  { to: `/month/${currentMonth}`, label: "Month", end: false },
+  { to: "/months", label: "Month Archive", end: false },
   { to: "/categories", label: "Categories", end: false },
   { to: "/settings", label: "Settings", end: false },
 ];

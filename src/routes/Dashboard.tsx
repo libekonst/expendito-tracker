@@ -1,126 +1,157 @@
-import { NavLink } from "react-router-dom";
+import { useMemo } from "react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ReferenceLine,
+  ResponsiveContainer,
+} from "recharts";
+import MonthDetail from "../components/MonthDetail";
+import { useStore } from "../store";
+import { calculateRunway } from "../domain/runwayEngine";
+import type { RunwayResult } from "../domain/types";
 
-// TODO: replace with real data store
-const BUDGET = 2500;
-const SPENT = 1340;
-
-const CATEGORIES = [
-  { name: "Food", spent: 480, color: "#6366f1" },
-  { name: "Transport", spent: 210, color: "#f59e0b" },
-  { name: "Utilities", spent: 180, color: "#10b981" },
-  { name: "Entertainment", spent: 320, color: "#ef4444" },
-  { name: "Other", spent: 150, color: "#8b5cf6" },
-];
-
-const RECENT = [
-  { date: "May 12", desc: "Grocery store", category: "Food", amount: 63.4 },
-  { date: "May 11", desc: "Metro top-up", category: "Transport", amount: 30.0 },
-  { date: "May 10", desc: "Netflix", category: "Entertainment", amount: 15.99 },
-  { date: "May 09", desc: "Restaurant", category: "Food", amount: 48.2 },
-  { date: "May 08", desc: "Electric bill", category: "Utilities", amount: 94.5 },
-  { date: "May 07", desc: "Coffee shop", category: "Food", amount: 12.8 },
-  { date: "May 06", desc: "Gym", category: "Other", amount: 45.0 },
-];
-
-const CATEGORY_COLOR: Record<string, string> = Object.fromEntries(
-  CATEGORIES.map((c) => [c.name, c.color]),
-);
-
-function fmt(n: number) {
-  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+function currentMonth(): string {
+  return new Date().toISOString().slice(0, 7);
 }
 
-const currentMonth = new Date().toISOString().slice(0, 7);
+function formatRunwayEnd(months: RunwayResult["months"]): string {
+  const last = months[months.length - 1];
+  if (!last) return "—";
+  const [y, m] = last.month.split("-");
+  return new Date(Number(y), Number(m) - 1).toLocaleString("en-GB", {
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function shortMonth(yyyymm: string): string {
+  const [y, m] = yyyymm.split("-");
+  return new Date(Number(y), Number(m) - 1).toLocaleString("en-GB", { month: "short", year: "2-digit" });
+}
 
 export default function Dashboard() {
-  const remaining = BUDGET - SPENT;
+  const settings = useStore((s) => s.settings);
+  const categories = useStore((s) => s.categories);
+  const entries = useStore((s) => s.entries);
+  const runway = useMemo(
+    () => calculateRunway(settings, categories, entries),
+    [settings, categories, entries],
+  );
+  const storageUnavailable = useStore((s) => s.storageUnavailable);
+  const cm = currentMonth();
+
+  const runwayEnd = formatRunwayEnd(runway.months);
+  const runwayLabel = `${runway.runwayMonths} months · runs out ${runwayEnd}`;
+
+  // Zero-crossing month for the reference line
+  const zeroMonth = runway.months.find((m) => m.closingBalance <= 0);
+
+  // Chart data — all months with a label
+  const chartData = runway.months.map((m) => ({
+    month: shortMonth(m.month),
+    balance: Math.round(m.closingBalance),
+    projected: m.isProjected,
+  }));
 
   return (
-    <div className="space-y-6">
-      {/* Stats strip */}
-      <div className="grid grid-cols-3 divide-x divide-gray-100 rounded-xl border border-gray-200 bg-white">
-        {[
-          { label: "Spent this month", value: fmt(SPENT), accent: "text-gray-900" },
-          { label: "Remaining", value: fmt(remaining), accent: "text-emerald-600" },
-          { label: "Monthly budget", value: fmt(BUDGET), accent: "text-gray-900" },
-        ].map((s) => (
-          <div key={s.label} className="px-6 py-4">
-            <p className="text-xs uppercase tracking-wider text-gray-400">{s.label}</p>
-            <p className={`mt-1 text-2xl font-semibold tabular-nums ${s.accent}`}>
-              {s.value}
-            </p>
-          </div>
-        ))}
+    <div className="space-y-10">
+      {storageUnavailable && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          localStorage is unavailable — data will not persist across page reloads.
+        </div>
+      )}
+
+      {/* Runway counter */}
+      <div className="text-center">
+        <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Runway</p>
+        <p className="mt-2 text-6xl font-bold tabular-nums text-gray-900">
+          {runway.runwayMonths}
+        </p>
+        <p className="mt-1 text-base text-gray-500">{runwayLabel}</p>
       </div>
 
-      {/* Two-column: transactions + categories */}
-      <div className="grid grid-cols-5 gap-6">
-        {/* Transactions table */}
-        <div className="col-span-3">
-          <div className="mb-3 flex items-baseline justify-between">
-            <p className="text-sm font-medium text-gray-500">Recent transactions</p>
-            <NavLink
-              to={`/month/${currentMonth}`}
-              className="text-xs text-indigo-500 hover:text-indigo-700"
-            >
-              View all →
-            </NavLink>
-          </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 text-xs uppercase tracking-wider text-gray-400">
-                <th className="pb-2 text-left font-medium">Date</th>
-                <th className="pb-2 text-left font-medium">Description</th>
-                <th className="pb-2 text-left font-medium">Category</th>
-                <th className="pb-2 text-right font-medium">Amount</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {RECENT.map((r) => (
-                <tr key={r.desc + r.date} className="hover:bg-gray-50">
-                  <td className="py-2.5 text-gray-400">{r.date}</td>
-                  <td className="py-2.5 text-gray-700">{r.desc}</td>
-                  <td className="py-2.5">
-                    <span
-                      className="rounded px-1.5 py-0.5 text-xs font-medium text-white"
-                      style={{ backgroundColor: CATEGORY_COLOR[r.category] ?? "#9ca3af" }}
-                    >
-                      {r.category}
-                    </span>
-                  </td>
-                  <td className="py-2.5 text-right tabular-nums text-gray-900">
-                    {r.amount.toLocaleString("en-US", { style: "currency", currency: "USD" })}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Category breakdown */}
-        <div className="col-span-2">
-          <p className="mb-3 text-sm font-medium text-gray-500">By category</p>
-          <div className="space-y-3">
-            {[...CATEGORIES].sort((a, b) => b.spent - a.spent).map((c) => (
-              <div key={c.name}>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-700">{c.name}</span>
-                  <span className="tabular-nums text-gray-500">{fmt(c.spent)}</span>
-                </div>
-                <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${(c.spent / SPENT) * 100}%`,
-                      backgroundColor: c.color,
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+      {/* Current month detail */}
+      <div>
+        <h2 className="mb-4 text-lg font-semibold text-gray-900">
+          {new Date().toLocaleString("en-GB", { month: "long", year: "numeric" })}
+        </h2>
+        <MonthDetail
+          month={cm}
+          isCurrentMonth={true}
+          openingBalance={runway.months.find((m) => m.month === cm)?.openingBalance ?? 0}
+        />
       </div>
+
+      {/* Balance chart */}
+      {chartData.length > 0 && (
+        <div>
+          <p className="mb-3 text-sm font-medium text-gray-500">Balance projection</p>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+              <XAxis
+                dataKey="month"
+                tick={{ fontSize: 11, fill: "#9ca3af" }}
+                axisLine={false}
+                tickLine={false}
+                interval="preserveStartEnd"
+              />
+              <YAxis
+                tick={{ fontSize: 11, fill: "#9ca3af" }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v) => `€${(v / 1000).toFixed(0)}k`}
+                width={40}
+              />
+              <Tooltip
+                formatter={(v: number) =>
+                  [`€${v.toLocaleString("de-DE", { minimumFractionDigits: 0 })}`, "Balance"]
+                }
+                contentStyle={{
+                  fontSize: 12,
+                  borderRadius: 8,
+                  border: "none",
+                  boxShadow: "0 2px 8px rgba(0,0,0,.12)",
+                }}
+              />
+              {/* Horizontal zero line */}
+              <ReferenceLine y={0} stroke="#e5e7eb" strokeWidth={1} />
+              {/* Vertical marker at runway end */}
+              {zeroMonth && (
+                <ReferenceLine
+                  x={shortMonth(zeroMonth.month)}
+                  stroke="#ef4444"
+                  strokeDasharray="4 2"
+                  label={{ value: shortMonth(zeroMonth.month), position: "top", fontSize: 10, fill: "#ef4444" }}
+                />
+              )}
+              {/* Past months — solid */}
+              <Line
+                dataKey="balance"
+                data={chartData.filter((d) => !d.projected)}
+                stroke="#6366f1"
+                strokeWidth={2}
+                dot={false}
+                connectNulls
+                isAnimationActive={false}
+              />
+              {/* Projected months — dashed */}
+              <Line
+                dataKey="balance"
+                data={chartData.filter((d) => d.projected)}
+                stroke="#6366f1"
+                strokeWidth={2}
+                strokeDasharray="5 3"
+                dot={false}
+                connectNulls
+                isAnimationActive={false}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }
