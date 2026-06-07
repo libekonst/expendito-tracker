@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import {
   LineChart,
   Line,
@@ -8,13 +9,15 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import MonthDetail from "../components/MonthDetail";
-import { useStore, selectRunwayProjection } from "../store";
+import { useStore } from "../store";
+import { calculateRunway } from "../domain/runwayEngine";
+import type { RunwayResult } from "../domain/types";
 
 function currentMonth(): string {
   return new Date().toISOString().slice(0, 7);
 }
 
-function formatRunwayEnd(months: ReturnType<typeof selectRunwayProjection>["months"]): string {
+function formatRunwayEnd(months: RunwayResult["months"]): string {
   const last = months[months.length - 1];
   if (!last) return "—";
   const [y, m] = last.month.split("-");
@@ -30,7 +33,13 @@ function shortMonth(yyyymm: string): string {
 }
 
 export default function Dashboard() {
-  const runway = useStore(selectRunwayProjection);
+  const settings = useStore((s) => s.settings);
+  const categories = useStore((s) => s.categories);
+  const entries = useStore((s) => s.entries);
+  const runway = useMemo(
+    () => calculateRunway(settings, categories, entries),
+    [settings, categories, entries],
+  );
   const storageUnavailable = useStore((s) => s.storageUnavailable);
   const cm = currentMonth();
 
@@ -69,7 +78,11 @@ export default function Dashboard() {
         <h2 className="mb-4 text-lg font-semibold text-gray-900">
           {new Date().toLocaleString("en-GB", { month: "long", year: "numeric" })}
         </h2>
-        <MonthDetail month={cm} isCurrentMonth={true} />
+        <MonthDetail
+          month={cm}
+          isCurrentMonth={true}
+          openingBalance={runway.months.find((m) => m.month === cm)?.openingBalance ?? 0}
+        />
       </div>
 
       {/* Balance chart */}

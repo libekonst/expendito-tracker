@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useStore, selectRunwayProjection } from "../store";
+import { useStore } from "../store";
 import { projectMonth } from "../domain/projectMonth";
 import type { Entry } from "../domain/types";
 
@@ -20,21 +20,16 @@ type QuickAddState = {
 
 type EditState = QuickAddState & { id: string };
 
-type Props = { month: string; isCurrentMonth: boolean };
+type Props = { month: string; isCurrentMonth: boolean; openingBalance: number };
 
-export default function MonthDetail({ month, isCurrentMonth }: Props) {
+export default function MonthDetail({ month, isCurrentMonth, openingBalance }: Props) {
   const categories = useStore((s) => s.categories);
   const allEntries = useStore((s) => s.entries);
   const addEntry = useStore((s) => s.addEntry);
   const updateEntry = useStore((s) => s.updateEntry);
   const deleteEntry = useStore((s) => s.deleteEntry);
-  const runway = useStore(selectRunwayProjection);
 
   const monthEntries = allEntries.filter((e) => e.date.startsWith(month));
-
-  // Find opening balance from runway projection
-  const summaryFromRunway = runway.months.find((m) => m.month === month);
-  const openingBalance = summaryFromRunway?.openingBalance ?? 0;
 
   const summary = projectMonth({
     month,
