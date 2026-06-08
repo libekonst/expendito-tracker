@@ -46,7 +46,7 @@ function daysUntil(yyyymm: string): number {
 }
 
 function formatRunwayEnd(months: RunwayResult["months"]): string {
-  const last = months[months.length - 1];
+  const last = [...months].reverse().find((m) => m.closingBalance > 0);
   if (!last) return "—";
   const [y, m] = last.month.split("-");
   return new Date(Number(y), Number(m) - 1).toLocaleString("en-GB", {
@@ -93,6 +93,7 @@ export default function Dashboard() {
   // Each segment uses a separate key so Recharts only draws points where defined.
   // The first runway month also carries waitingBalance (bridge point) so the gray
   // flat line and the indigo projection connect visually at startingMonth.
+  // Months with closingBalance <= 0 are excluded from the chart.
   const allChartData = useMemo<ChartPoint[]>(() => {
     const points: ChartPoint[] = [];
 
@@ -105,6 +106,7 @@ export default function Dashboard() {
     }
 
     for (const m of runway.months) {
+      if (m.closingBalance <= 0) continue;
       const balance = Math.round(m.closingBalance);
       const bridgePoint =
         isFutureStart && m.month === settings.startingMonth
@@ -139,7 +141,7 @@ export default function Dashboard() {
           {totalMonths}
         </p>
         <p className="mt-1 text-base text-gray-500">
-          {totalMonths} months · runs out {runwayEnd}
+          {totalMonths} months · lasts through {runwayEnd}
         </p>
         {isFutureStart && daysUntilBurning !== null && (
           <p className="mt-2 text-sm font-medium text-amber-600">
