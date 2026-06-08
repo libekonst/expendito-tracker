@@ -53,13 +53,20 @@ type LegacyCategory = {
   name: string;
   type: "expense" | "income";
   plannedAmounts?: Array<{ amount: number; from: string }>;
+  plannedAmount?: number;
+  from?: string;
+  until?: string;
 };
 
 function migrateCategories(categories: LegacyCategory[]): Category[] {
+  const month = currentMonth();
   return categories.map((cat) => {
-    if ("plannedAmounts" in cat && Array.isArray(cat.plannedAmounts)) {
+    if (Array.isArray(cat.plannedAmounts)) {
       const { plannedAmounts, ...rest } = cat;
-      return { ...rest, plannedAmount: plannedAmounts[0]?.amount ?? 0 };
+      const sorted = [...plannedAmounts].sort((a, b) => b.from.localeCompare(a.from));
+      const active = sorted.find((p) => p.from <= month);
+      const amount = active?.amount ?? sorted[sorted.length - 1]?.amount ?? 0;
+      return { ...rest, plannedAmount: amount };
     }
     return cat as Category;
   });

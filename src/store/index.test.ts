@@ -86,6 +86,79 @@ describe("selectRunwayProjection", () => {
   });
 });
 
+describe("loadPersistedState migration", () => {
+  it("picks the most recent active amount when legacy category has multiple plannedAmounts", () => {
+    // Simulate persisted data in the old format with two amount entries
+    localStorage.setItem(
+      "expendito-v1",
+      JSON.stringify({
+        state: {
+          categories: [
+            {
+              id: "cat-1",
+              name: "Rent",
+              type: "expense",
+              plannedAmounts: [
+                { amount: 800, from: "2025-01" },
+                { amount: 950, from: "2025-07" },
+              ],
+            },
+          ],
+          entries: [],
+          settings: { startingBalance: 5000, startingMonth: "2025-01" },
+          wizardCompleted: true,
+        },
+      }),
+    );
+    const store = createStore();
+    expect(store.getState().categories[0].plannedAmount).toBe(950);
+  });
+
+  it("falls back to earliest amount when all entries are in the future", () => {
+    localStorage.setItem(
+      "expendito-v1",
+      JSON.stringify({
+        state: {
+          categories: [
+            {
+              id: "cat-1",
+              name: "Savings",
+              type: "income",
+              plannedAmounts: [
+                { amount: 1200, from: "2030-01" },
+                { amount: 1500, from: "2031-01" },
+              ],
+            },
+          ],
+          entries: [],
+          settings: { startingBalance: 0, startingMonth: "2030-01" },
+          wizardCompleted: true,
+        },
+      }),
+    );
+    const store = createStore();
+    expect(store.getState().categories[0].plannedAmount).toBe(1200);
+  });
+
+  it("migrates a single-entry legacy category correctly", () => {
+    localStorage.setItem(
+      "expendito-v1",
+      JSON.stringify({
+        state: {
+          categories: [
+            { id: "c1", name: "Food", type: "expense", plannedAmounts: [{ amount: 400, from: "2025-01" }] },
+          ],
+          entries: [],
+          settings: { startingBalance: 1000, startingMonth: "2025-01" },
+          wizardCompleted: true,
+        },
+      }),
+    );
+    const store = createStore();
+    expect(store.getState().categories[0].plannedAmount).toBe(400);
+  });
+});
+
 describe("storageUnavailable", () => {
   it("is true when localStorage.setItem throws", () => {
     vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
