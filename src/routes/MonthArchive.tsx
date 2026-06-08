@@ -1,5 +1,7 @@
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
-import { useStore, selectRunwayProjection } from "../store";
+import { useStore } from "../store";
+import { calculateRunway } from "../domain/runwayEngine";
 
 function currentMonth(): string {
   return new Date().toISOString().slice(0, 7);
@@ -15,7 +17,13 @@ function fmt(n: number): string {
 }
 
 export default function MonthArchive() {
-  const runway = useStore(selectRunwayProjection);
+  const settings = useStore((s) => s.settings);
+  const categories = useStore((s) => s.categories);
+  const entries = useStore((s) => s.entries);
+  const runway = useMemo(
+    () => calculateRunway(settings, categories, entries),
+    [settings, categories, entries],
+  );
   const current = currentMonth();
 
   const pastMonths = runway.months.filter((m) => m.month < current);
