@@ -78,7 +78,7 @@ function RecurringSection<T extends Expense | Income>({
   items: T[];
   onAdd: (name: string, amount: number) => void;
   onUpdate: (id: string, name: string, amount: number) => void;
-  onDelete: (id: string, name: string) => void;
+  onDelete: (id: string) => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -96,7 +96,7 @@ function RecurringSection<T extends Expense | Income>({
 
   function handleDelete(item: T) {
     if (window.confirm(`Delete "${item.name}"? This affects the runway simulation.`)) {
-      onDelete(item.id, item.name);
+      onDelete(item.id);
     }
   }
 
