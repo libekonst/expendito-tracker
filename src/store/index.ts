@@ -1,36 +1,31 @@
 import { createStore as createZustandStore } from "zustand";
 import { nanoid } from "nanoid";
-import type { Category, Entry, Settings, RunwayResult } from "../domain/types";
+import type { Expense, Income, Settings, RunwayResult } from "../domain/types";
 import { calculateRunway } from "../domain/runwayEngine";
 
 type State = {
-  categories: Category[];
-  entries: Entry[];
+  expenses: Expense[];
+  incomes: Income[];
   settings: Settings;
   storageUnavailable: boolean;
   wizardCompleted: boolean;
 };
 
-type WizardPayload = {
-  settings: Settings;
-  categories: Omit<Category, "id">[];
-};
-
 type Actions = {
-  addCategory: (cat: Omit<Category, "id">) => void;
-  updateCategory: (id: string, patch: Partial<Omit<Category, "id">>) => void;
-  deleteCategory: (id: string) => void;
-  addEntry: (entry: Omit<Entry, "id">) => void;
-  updateEntry: (id: string, patch: Partial<Omit<Entry, "id">>) => void;
-  deleteEntry: (id: string) => void;
+  addExpense: (expense: Omit<Expense, "id">) => void;
+  updateExpense: (id: string, patch: Partial<Omit<Expense, "id">>) => void;
+  deleteExpense: (id: string) => void;
+  addIncome: (income: Omit<Income, "id">) => void;
+  updateIncome: (id: string, patch: Partial<Omit<Income, "id">>) => void;
+  deleteIncome: (id: string) => void;
   updateSettings: (patch: Partial<Settings>) => void;
-  completeWizard: (payload: WizardPayload) => void;
-  importAll: (payload: { categories: Category[]; entries: Entry[]; settings: Settings }) => void;
+  completeWizard: (payload: { settings: Settings; expenses: Omit<Expense, "id">[] }) => void;
+  importAll: (payload: { expenses: Expense[]; incomes: Income[]; settings: Settings }) => void;
 };
 
 export type Store = State & Actions;
 
-const STORAGE_KEY = "expendito-v1";
+const STORAGE_KEY = "expendito-v2";
 
 function currentMonth(): string {
   return new Date().toISOString().slice(0, 7);
@@ -42,8 +37,8 @@ const defaultSettings: Settings = {
 };
 
 type PersistedSlice = {
-  categories?: Category[];
-  entries?: Entry[];
+  expenses?: Expense[];
+  incomes?: Income[];
   settings?: Settings;
   wizardCompleted?: boolean;
 };
@@ -64,8 +59,8 @@ function saveState(state: State): void {
       STORAGE_KEY,
       JSON.stringify({
         state: {
-          categories: state.categories,
-          entries: state.entries,
+          expenses: state.expenses,
+          incomes: state.incomes,
           settings: state.settings,
           wizardCompleted: state.wizardCompleted,
         },
@@ -91,48 +86,45 @@ export function createStore() {
   const persisted = storageAvailable ? loadPersistedState() : {};
 
   const s = createZustandStore<Store>()((set) => ({
-    categories: persisted.categories ?? [],
-    entries: persisted.entries ?? [],
+    expenses: persisted.expenses ?? [],
+    incomes: persisted.incomes ?? [],
     settings: persisted.settings ?? defaultSettings,
     storageUnavailable: !storageAvailable,
     wizardCompleted: persisted.wizardCompleted ?? false,
 
-    addCategory: (cat) =>
-      set((s) => ({ categories: [...s.categories, { id: nanoid(), ...cat }] })),
+    addExpense: (expense) =>
+      set((s) => ({ expenses: [...s.expenses, { id: nanoid(), ...expense }] })),
 
-    updateCategory: (id, patch) =>
+    updateExpense: (id, patch) =>
       set((s) => ({
-        categories: s.categories.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+        expenses: s.expenses.map((e) => (e.id === id ? { ...e, ...patch } : e)),
       })),
 
-    deleteCategory: (id) =>
+    deleteExpense: (id) =>
+      set((s) => ({ expenses: s.expenses.filter((e) => e.id !== id) })),
+
+    addIncome: (income) =>
+      set((s) => ({ incomes: [...s.incomes, { id: nanoid(), ...income }] })),
+
+    updateIncome: (id, patch) =>
       set((s) => ({
-        categories: s.categories.filter((c) => c.id !== id),
-        entries: s.entries.filter((e) => e.categoryId !== id),
+        incomes: s.incomes.map((i) => (i.id === id ? { ...i, ...patch } : i)),
       })),
 
-    addEntry: (entry) =>
-      set((s) => ({ entries: [...s.entries, { id: nanoid(), ...entry }] })),
-
-    updateEntry: (id, patch) =>
-      set((s) => ({
-        entries: s.entries.map((e) => (e.id === id ? { ...e, ...patch } : e)),
-      })),
-
-    deleteEntry: (id) =>
-      set((s) => ({ entries: s.entries.filter((e) => e.id !== id) })),
+    deleteIncome: (id) =>
+      set((s) => ({ incomes: s.incomes.filter((i) => i.id !== id) })),
 
     updateSettings: (patch) =>
       set((s) => ({ settings: { ...s.settings, ...patch } })),
 
-    completeWizard: ({ settings, categories }) =>
+    completeWizard: ({ settings, expenses }) =>
       set({
         settings,
-        categories: categories.map((c) => ({ id: nanoid(), ...c })),
+        expenses: expenses.map((e) => ({ id: nanoid(), ...e })),
         wizardCompleted: true,
       }),
 
-    importAll: (payload: { categories: Category[]; entries: Entry[]; settings: Settings }) =>
+    importAll: (payload) =>
       set({ ...payload, wizardCompleted: true }),
   }));
 
@@ -145,7 +137,7 @@ export function createStore() {
 
 /** Derives the runway projection from current store state. Use as a Zustand selector. */
 export function selectRunwayProjection(state: Store): RunwayResult {
-  return calculateRunway(state.settings, state.categories, state.entries);
+  return calculateRunway(state.settings, state.expenses, state.incomes);
 }
 
 // Singleton store for the app
