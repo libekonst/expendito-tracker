@@ -252,3 +252,50 @@ describe("Dashboard chart — no waiting period (startingMonth is current month)
     expect(screen.getByText("Balance projection")).toBeInTheDocument();
   });
 });
+
+// ─── Runway label copy and chart end at last positive month (#17) ─────────────
+
+describe("runway subtitle — lasts through", () => {
+  // Fixture: €2000, €1500/mo starting 2026-11
+  // Nov closes at €500 (positive), Dec closes at −€1000 (excluded)
+  beforeEach(() => {
+    store.setState({
+      settings: { startingBalance: 2000, startingMonth: "2026-11" },
+      categories: [{ id: "rent", name: "Rent", type: "expense", plannedAmount: 1500 }],
+    });
+  });
+
+  it('shows "lasts through" instead of "runs out"', () => {
+    renderDashboard();
+    expect(screen.getByText(/lasts through/i)).toBeInTheDocument();
+    expect(screen.queryByText(/runs out/i)).not.toBeInTheDocument();
+  });
+
+  it("subtitle targets the last positive month (Nov 2026), not the negative terminal month", () => {
+    renderDashboard();
+    expect(screen.getByText(/lasts through Nov 2026/i)).toBeInTheDocument();
+  });
+});
+
+describe("chart excludes negative-balance month (#17)", () => {
+  beforeEach(() => {
+    store.setState({
+      settings: { startingBalance: 2000, startingMonth: "2026-11" },
+      categories: [{ id: "rent", name: "Rent", type: "expense", plannedAmount: 1500 }],
+    });
+  });
+
+  it("does not include Dec 2026 (closingBalance < 0) in the chart data", () => {
+    renderDashboard();
+    expect(capturedLineChartData.length).toBeGreaterThan(0);
+    const data = capturedLineChartData[0] as Array<{ month: string }>;
+    expect(data.map((d) => d.month).some((m) => /Dec/i.test(m))).toBe(false);
+  });
+
+  it("includes Nov 2026 (last positive month) in the chart data", () => {
+    renderDashboard();
+    expect(capturedLineChartData.length).toBeGreaterThan(0);
+    const data = capturedLineChartData[0] as Array<{ month: string }>;
+    expect(data.map((d) => d.month).some((m) => /Nov/i.test(m))).toBe(true);
+  });
+});
