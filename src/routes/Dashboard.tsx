@@ -13,6 +13,13 @@ import { useStore } from "../store";
 import { calculateRunway } from "../domain/runwayEngine";
 import type { RunwayResult } from "../domain/types";
 
+type ChartPoint = {
+  month: string;
+  waitingBalance?: number; // only set for waiting-period months
+  solidBalance?: number;   // only set for non-projected runway months
+  dashedBalance?: number;  // only set for projected runway months
+};
+
 function currentMonth(): string {
   return new Date().toISOString().slice(0, 7);
 }
@@ -82,25 +89,37 @@ export default function Dashboard() {
 
   const runwayEnd = formatRunwayEnd(runway.months);
 
-  // Flat waiting-period months prepended to the chart when start is in the future
-  const waitingChartData = useMemo(() => {
-    if (!isFutureStart) return [];
-    const data: { month: string; balance: number }[] = [];
-    let m = cm;
-    while (m < settings.startingMonth) {
-      data.push({ month: shortMonth(m), balance: Math.round(settings.startingBalance) });
-      m = addMonth(m);
+  // Build unified chart data: waiting-period months first, then runway months.
+  // Each segment uses a separate key so Recharts only draws points where defined.
+  // The first runway month also carries waitingBalance (bridge point) so the gray
+  // flat line and the indigo projection connect visually at startingMonth.
+  const allChartData = useMemo<ChartPoint[]>(() => {
+    const points: ChartPoint[] = [];
+
+    if (isFutureStart) {
+      let month = cm;
+      while (month < settings.startingMonth) {
+        points.push({ month: shortMonth(month), waitingBalance: settings.startingBalance });
+        month = addMonth(month);
+      }
     }
-    return data;
-  }, [isFutureStart, settings.startingMonth, settings.startingBalance, cm]);
 
-  const runwayChartData = runway.months.map((m) => ({
-    month: shortMonth(m.month),
-    balance: Math.round(m.closingBalance),
-    projected: m.isProjected,
-  }));
+    for (const m of runway.months) {
+      const balance = Math.round(m.closingBalance);
+      const bridgePoint =
+        isFutureStart && m.month === settings.startingMonth
+          ? { waitingBalance: settings.startingBalance }
+          : {};
+      if (m.isProjected) {
+        points.push({ month: shortMonth(m.month), ...bridgePoint, dashedBalance: balance });
+      } else {
+        points.push({ month: shortMonth(m.month), ...bridgePoint, solidBalance: balance });
+      }
+    }
 
-  const allChartData = [...waitingChartData, ...runwayChartData];
+    return points;
+  }, [cm, settings.startingMonth, settings.startingBalance, runway.months]);
+
   const zeroMonth = runway.months.find((m) => m.closingBalance <= 0);
 
   return (
@@ -196,21 +215,17 @@ export default function Dashboard() {
                 />
               )}
               {/* Waiting period — flat gray line */}
-              {waitingChartData.length > 0 && (
-                <Line
-                  dataKey="balance"
-                  data={waitingChartData}
-                  stroke="#d1d5db"
-                  strokeWidth={2}
-                  dot={false}
-                  connectNulls
-                  isAnimationActive={false}
-                />
-              )}
-              {/* Past months — solid indigo */}
               <Line
-                dataKey="balance"
-                data={runwayChartData.filter((d) => !d.projected)}
+                dataKey="waitingBalance"
+                stroke="#d1d5db"
+                strokeWidth={2}
+                dot={false}
+                connectNulls
+                isAnimationActive={false}
+              />
+              {/* Past/current months — solid indigo */}
+              <Line
+                dataKey="solidBalance"
                 stroke="#6366f1"
                 strokeWidth={2}
                 dot={false}
@@ -219,8 +234,7 @@ export default function Dashboard() {
               />
               {/* Projected months — dashed indigo */}
               <Line
-                dataKey="balance"
-                data={runwayChartData.filter((d) => d.projected)}
+                dataKey="dashedBalance"
                 stroke="#6366f1"
                 strokeWidth={2}
                 strokeDasharray="5 3"
