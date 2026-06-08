@@ -48,39 +48,11 @@ type PersistedSlice = {
   wizardCompleted?: boolean;
 };
 
-type LegacyCategory = {
-  id: string;
-  name: string;
-  type: "expense" | "income";
-  plannedAmounts?: Array<{ amount: number; from: string }>;
-  plannedAmount?: number;
-  from?: string;
-  until?: string;
-};
-
-function migrateCategories(categories: LegacyCategory[]): Category[] {
-  const month = currentMonth();
-  return categories.map((cat) => {
-    if (Array.isArray(cat.plannedAmounts)) {
-      const { plannedAmounts, ...rest } = cat;
-      const sorted = [...plannedAmounts].sort((a, b) => b.from.localeCompare(a.from));
-      const active = sorted.find((p) => p.from <= month);
-      const amount = active?.amount ?? sorted[sorted.length - 1]?.amount ?? 0;
-      return { ...rest, plannedAmount: amount };
-    }
-    return cat as Category;
-  });
-}
-
 function loadPersistedState(): PersistedSlice {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return {};
-    const slice = (JSON.parse(raw) as { state?: PersistedSlice & { categories?: LegacyCategory[] } }).state ?? {};
-    if (slice.categories) {
-      slice.categories = migrateCategories(slice.categories as LegacyCategory[]);
-    }
-    return slice;
+    return (JSON.parse(raw) as { state?: PersistedSlice }).state ?? {};
   } catch {
     return {};
   }
