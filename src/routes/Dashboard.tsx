@@ -6,18 +6,16 @@ import {
   YAxis,
   Tooltip,
   ReferenceLine,
+  ReferenceDot,
   ResponsiveContainer,
 } from "recharts";
-import MonthDetail from "../components/MonthDetail";
 import { useStore } from "../store";
-import { calculateRunway } from "../domain/runwayEngine";
-import type { RunwayResult } from "../domain/types";
+import { calculateRunway, computeMonthlyNetCost } from "../domain/runwayEngine";
 
 type ChartPoint = {
   month: string;
   waitingBalance?: number; // only set for waiting-period months
-  solidBalance?: number;   // only set for non-projected runway months
-  dashedBalance?: number;  // only set for projected runway months
+  balance?: number;        // only set for runway months (startingMonth to endMonth)
 };
 
 function currentMonth(): string {
@@ -31,28 +29,12 @@ function addMonth(yyyymm: string): string {
     : `${y}-${String(m + 1).padStart(2, "0")}`;
 }
 
-function monthDiff(from: string, to: string): number {
-  const [fy, fm] = from.split("-").map(Number);
-  const [ty, tm] = to.split("-").map(Number);
-  return (ty - fy) * 12 + (tm - fm);
-}
-
 function daysUntil(yyyymm: string): number {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const [y, m] = yyyymm.split("-").map(Number);
   const target = new Date(y, m - 1, 1);
   return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-}
-
-function formatRunwayEnd(months: RunwayResult["months"]): string {
-  const last = [...months].reverse().find((m) => m.closingBalance > 0);
-  if (!last) return "—";
-  const [y, m] = last.month.split("-");
-  return new Date(Number(y), Number(m) - 1).toLocaleString("en-GB", {
-    month: "short",
-    year: "numeric",
-  });
 }
 
 function shortMonth(yyyymm: string): string {
@@ -71,29 +53,43 @@ function longMonth(yyyymm: string): string {
   });
 }
 
+function formatEndMonth(yyyymm: string): string {
+  const [y, m] = yyyymm.split("-");
+  return new Date(Number(y), Number(m) - 1).toLocaleString("en-GB", {
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function monthName(yyyymm: string): string {
+  const [y, m] = yyyymm.split("-");
+  return new Date(Number(y), Number(m) - 1).toLocaleString("en-GB", {
+    month: "long",
+  });
+}
+
 export default function Dashboard() {
   const settings = useStore((s) => s.settings);
-  const categories = useStore((s) => s.categories);
-  const entries = useStore((s) => s.entries);
-  const runway = useMemo(
-    () => calculateRunway(settings, categories, entries),
-    [settings, categories, entries],
-  );
+  const expenses = useStore((s) => s.expenses);
+  const incomes = useStore((s) => s.incomes);
   const storageUnavailable = useStore((s) => s.storageUnavailable);
-  const cm = currentMonth();
 
+  const runway = useMemo(
+    () => calculateRunway(settings, expenses, incomes),
+    [settings, expenses, incomes],
+  );
+
+  const monthlyExpenses = useMemo(
+    () => computeMonthlyNetCost(expenses, []),
+    [expenses],
+  );
+
+  const cm = currentMonth();
   const isFutureStart = settings.startingMonth > cm;
-  const waitingMonthCount = isFutureStart ? monthDiff(cm, settings.startingMonth) : 0;
-  const totalMonths = waitingMonthCount + runway.runwayMonths;
   const daysUntilBurning = isFutureStart ? daysUntil(settings.startingMonth) : null;
 
-  const runwayEnd = formatRunwayEnd(runway.months);
-
-  // Build unified chart data: waiting-period months first, then runway months.
-  // Each segment uses a separate key so Recharts only draws points where defined.
-  // The first runway month also carries waitingBalance (bridge point) so the gray
-  // flat line and the indigo projection connect visually at startingMonth.
-  // Months with closingBalance <= 0 are excluded from the chart.
+  // Build chart data: waiting-period months (gray flat line) then runway months (indigo line).
+  // The startingMonth data point carries BOTH keys to bridge the two segments visually.
   const allChartData = useMemo<ChartPoint[]>(() => {
     const points: ChartPoint[] = [];
 
@@ -106,23 +102,19 @@ export default function Dashboard() {
     }
 
     for (const m of runway.months) {
-      if (m.closingBalance <= 0) continue;
       const balance = Math.round(m.closingBalance);
       const bridgePoint =
         isFutureStart && m.month === settings.startingMonth
           ? { waitingBalance: settings.startingBalance }
           : {};
-      if (m.isProjected) {
-        points.push({ month: shortMonth(m.month), ...bridgePoint, dashedBalance: balance });
-      } else {
-        points.push({ month: shortMonth(m.month), ...bridgePoint, solidBalance: balance });
-      }
+      points.push({ month: shortMonth(m.month), ...bridgePoint, balance });
     }
 
     return points;
-  }, [cm, settings.startingMonth, settings.startingBalance, runway.months]);
+  }, [cm, isFutureStart, settings.startingMonth, settings.startingBalance, runway.months]);
 
-  const zeroMonth = runway.months.find((m) => m.closingBalance <= 0);
+  // Last data point month label for the overhang dot
+  const lastChartPoint = allChartData.length > 0 ? allChartData[allChartData.length - 1] : null;
 
   return (
     <div className="space-y-10">
@@ -132,39 +124,37 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Runway counter */}
+      {/* Runway headline */}
       <div className="text-center">
         <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
           Runway
         </p>
         <p className="mt-2 text-6xl font-bold tabular-nums text-gray-900">
-          {totalMonths}
+          {runway.remainingMonths}
         </p>
         <p className="mt-1 text-base text-gray-500">
-          {totalMonths} months · lasts through {runwayEnd}
+          {runway.totalMonths} months total · lasts through{" "}
+          {runway.endMonth ? formatEndMonth(runway.endMonth) : "—"}
         </p>
         {isFutureStart && daysUntilBurning !== null && (
           <p className="mt-2 text-sm font-medium text-amber-600">
-            {daysUntilBurning} days until savings start burning · starts{" "}
+            {daysUntilBurning} days until runway starts · starts{" "}
             {longMonth(settings.startingMonth)}
           </p>
         )}
       </div>
 
-      {/* Current month detail */}
-      <div>
-        <h2 className="mb-4 text-lg font-semibold text-gray-900">
-          {new Date().toLocaleString("en-GB", { month: "long", year: "numeric" })}
-        </h2>
-        <MonthDetail
-          month={cm}
-          isCurrentMonth={true}
-          actualsOnly={isFutureStart}
-          openingBalance={
-            runway.months.find((m) => m.month === cm)?.openingBalance ??
-            settings.startingBalance
-          }
-        />
+      {/* Overhang block */}
+      {runway.overhang && runway.endMonth && (
+        <div className="text-center text-sm text-gray-500">
+          €{runway.overhang.remainingBalance.toLocaleString("de-DE", { minimumFractionDigits: 0 })} remaining · €{runway.overhang.shortfall.toLocaleString("de-DE", { minimumFractionDigits: 0 })} short of{" "}
+          {monthName(addMonth(runway.endMonth))}
+        </div>
+      )}
+
+      {/* Total monthly expenses */}
+      <div className="text-sm text-gray-500">
+        Total monthly expenses: €{monthlyExpenses.toLocaleString("de-DE", { minimumFractionDigits: 0 })}/month
       </div>
 
       {/* Balance chart */}
@@ -203,19 +193,6 @@ export default function Dashboard() {
                 }}
               />
               <ReferenceLine y={0} stroke="#e5e7eb" strokeWidth={1} />
-              {zeroMonth && (
-                <ReferenceLine
-                  x={shortMonth(zeroMonth.month)}
-                  stroke="#ef4444"
-                  strokeDasharray="4 2"
-                  label={{
-                    value: shortMonth(zeroMonth.month),
-                    position: "top",
-                    fontSize: 10,
-                    fill: "#ef4444",
-                  }}
-                />
-              )}
               {/* Waiting period — flat gray line */}
               <Line
                 dataKey="waitingBalance"
@@ -225,22 +202,29 @@ export default function Dashboard() {
                 connectNulls
                 isAnimationActive={false}
               />
-              {/* Past/current months — solid indigo */}
+              {/* Runway months — continuous indigo line */}
               <Line
-                dataKey="solidBalance"
+                dataKey="balance"
                 stroke="#6366f1"
                 strokeWidth={2}
-                dot={false}
-                connectNulls
-                isAnimationActive={false}
-              />
-              {/* Projected months — dashed indigo */}
-              <Line
-                dataKey="dashedBalance"
-                stroke="#6366f1"
-                strokeWidth={2}
-                strokeDasharray="5 3"
-                dot={false}
+                dot={runway.overhang && lastChartPoint
+                  ? (props: any) => {
+                      const isLast = props.index === allChartData.length - 1;
+                      if (!isLast) return <g />;
+                      const { cx, cy } = props;
+                      return (
+                        <circle
+                          key="overhang-dot"
+                          cx={cx}
+                          cy={cy}
+                          r={5}
+                          fill="#6366f1"
+                          stroke="#fff"
+                          strokeWidth={2}
+                        />
+                      );
+                    }
+                  : false}
                 connectNulls
                 isAnimationActive={false}
               />
