@@ -13,12 +13,15 @@ A record of money coming in — one-off or occasional (e.g. freelance gig, sever
 _Avoid_: transaction, credit, inflow, entry
 
 **Category**:
-A named grouping of Expenses or Incomes with a planned monthly amount. Has a type: `expense` or `income`. Carries a history of planned amounts with effective dates.
+A named grouping of Expenses or Incomes with a planned monthly amount. Has a type: `expense` or `income`. May carry an optional Activity Window.
 _Avoid_: budget line, bucket
 
 **Planned Amount**:
-The amount expected for a Category in a given month. Derived by walking the Category's planned-amount history and taking the most recent entry that predates the month. Changes always take effect from the next month — editing never rewrites history.
+The fixed monthly amount expected for a Category. A single value — not a history. Changes take effect immediately.
 _Avoid_: budget, target
+
+**Activity Window**:
+The optional date range during which a Category contributes to the runway. Defined by an optional `from` month (inclusive) and an optional `until` month (inclusive). A Category without an Activity Window contributes for the full runway duration. Outside the window, the planned amount is treated as zero.
 
 **Starting Balance**:
 The total savings amount at the moment the user quits their job. The anchor for all runway calculations.
@@ -42,7 +45,7 @@ A calendar month identified by `YYYY-MM`. The unit of planning and reporting. No
 
 ## Relationships
 
-- A **Category** has one `type` (`expense` | `income`) and one or more **Planned Amounts** with effective dates
+- A **Category** has one `type` (`expense` | `income`), one **Planned Amount**, and an optional **Activity Window**
 - An **Expense** belongs to exactly one expense **Category**
 - An **Income** belongs to exactly one income **Category**
 - A **Month** has zero or more **Expenses** and **Incomes** recorded against it
@@ -51,8 +54,8 @@ A calendar month identified by `YYYY-MM`. The unit of planning and reporting. No
 
 ## Example dialogue
 
-> **Dev:** "When the user edits the Planned Amount for Rent mid-month, does that change the current month's projection?"
-> **Domain expert:** "No — Planned Amount changes always take effect from next month. The current month's projection uses whatever Planned Amount was active at the start of the month."
+> **Dev:** "When the user edits the Planned Amount for Rent, does that change the current month's projection?"
+> **Domain expert:** "Yes — the Planned Amount is a single value, so any edit takes effect immediately."
 >
 > **Dev:** "If the user deletes the Food category, what happens to the Expenses logged under it?"
 > **Domain expert:** "They're deleted too. The confirmation tells you how many Expenses will go."
