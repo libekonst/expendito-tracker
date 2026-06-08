@@ -1,0 +1,3 @@
+# Simulation-only: no actual expense logging
+
+The app exists to answer one question — how many months of runway do I have left — and to let the user explore that answer by adjusting planned amounts and starting funds. Logging individual transactions (what was spent, on what date) adds no value to this simulation and actively works against the goal of keeping the tool simple and fast to use. We removed the `Entry` type, all actual-vs-planned comparison UI, the Month Archive, and the current-month special-casing logic entirely. Every simulated month runs purely from planned amounts. A future engineer should not re-add actual tracking to "complete" the app — the deliberate scope is the simulation, not the ledger.

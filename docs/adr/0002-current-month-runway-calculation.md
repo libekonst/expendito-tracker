@@ -1,4 +1,4 @@
-# Current month runway calculation
+# Current month runway calculation [superseded by ADR-0003]
 
 The Runway Engine treats past months (actuals only) and future months (planned amounts only) differently from the current in-progress month. For the current month, expenses use `max(actual, planned)` per category — if you've already overspent a category the overage flows through; if you're under, the engine assumes you'll reach the plan. Income uses actuals only — planned income is not counted until logged.
 
