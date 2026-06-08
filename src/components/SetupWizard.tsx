@@ -6,20 +6,19 @@ function currentMonth(): string {
   return new Date().toISOString().slice(0, 7);
 }
 
-type DraftCategory = {
+type DraftExpense = {
   key: string; // local key for React list
   name: string;
-  type: "expense" | "income";
   plannedAmount: string;
 };
 
-const SUGGESTED: Omit<DraftCategory, "key">[] = [
-  { name: "Rent", type: "expense", plannedAmount: "" },
-  { name: "Food", type: "expense", plannedAmount: "" },
-  { name: "Transport", type: "expense", plannedAmount: "" },
-  { name: "Utilities", type: "expense", plannedAmount: "" },
-  { name: "Entertainment", type: "expense", plannedAmount: "" },
-  { name: "Other", type: "expense", plannedAmount: "" },
+const SUGGESTED: Omit<DraftExpense, "key">[] = [
+  { name: "Rent", plannedAmount: "" },
+  { name: "Food", plannedAmount: "" },
+  { name: "Transport", plannedAmount: "" },
+  { name: "Utilities", plannedAmount: "" },
+  { name: "Entertainment", plannedAmount: "" },
+  { name: "Other", plannedAmount: "" },
 ];
 
 export default function SetupWizard() {
@@ -28,23 +27,23 @@ export default function SetupWizard() {
 
   const [balance, setBalance] = useState("");
   const [startingMonth, setStartingMonth] = useState(cm);
-  const [cats, setCats] = useState<DraftCategory[]>(
+  const [expenses, setExpenses] = useState<DraftExpense[]>(
     SUGGESTED.map((s, i) => ({ ...s, key: String(i) }))
   );
   const [error, setError] = useState("");
 
-  let nextKey = cats.length;
+  let nextKey = expenses.length;
 
-  function updateCat(key: string, patch: Partial<DraftCategory>) {
-    setCats((cs) => cs.map((c) => (c.key === key ? { ...c, ...patch } : c)));
+  function updateExpense(key: string, patch: Partial<DraftExpense>) {
+    setExpenses((es) => es.map((e) => (e.key === key ? { ...e, ...patch } : e)));
   }
 
-  function removeCat(key: string) {
-    setCats((cs) => cs.filter((c) => c.key !== key));
+  function removeExpense(key: string) {
+    setExpenses((es) => es.filter((e) => e.key !== key));
   }
 
-  function addCat() {
-    setCats((cs) => [...cs, { key: String(nextKey++), name: "", type: "expense", plannedAmount: "" }]);
+  function addExpense() {
+    setExpenses((es) => [...es, { key: String(nextKey++), name: "", plannedAmount: "" }]);
   }
 
   function submit(e: React.FormEvent) {
@@ -60,21 +59,23 @@ export default function SetupWizard() {
     }
     setError("");
 
-    const expenses: Omit<Expense, "id">[] = cats
-      .filter((c) => c.name.trim())
-      .map((c) => ({
-        name: c.name.trim(),
-        type: c.type === "income" ? ("recurringIncome" as const) : ("recurringExpense" as const),
-        amount: parseFloat(c.plannedAmount) || 0,
+    const seedExpenses: Omit<Expense, "id">[] = expenses
+      .filter((e) => e.name.trim())
+      .map((e) => ({
+        name: e.name.trim(),
+        type: "recurringExpense" as const,
+        amount: parseFloat(e.plannedAmount) || 0,
       }));
 
-    completeWizard({ settings: { startingBalance, startingMonth }, expenses });
+    completeWizard({ settings: { startingBalance, startingMonth }, expenses: seedExpenses });
   }
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-12">
-      <h1 className="text-3xl font-bold text-gray-900">Welcome to Expendito</h1>
-      <p className="mt-2 text-gray-500">Set up your runway in a few steps.</p>
+      <h1 className="text-3xl font-bold text-gray-900">Set up your runway</h1>
+      <p className="mt-2 text-gray-500">
+        Tell us about your savings and monthly expenses — we'll calculate how long your runway lasts.
+      </p>
 
       <form onSubmit={submit} className="mt-8 space-y-8">
         {/* Starting balance + month */}
@@ -109,39 +110,33 @@ export default function SetupWizard() {
           </div>
         </div>
 
-        {/* Categories */}
+        {/* Recurring Expenses */}
         <div>
-          <p className="text-sm font-medium text-gray-700">Monthly expenses</p>
-          <p className="text-xs text-gray-400 mb-3">Rename, remove, or add categories. Set a planned monthly amount for each.</p>
+          <p className="text-sm font-medium text-gray-700">Recurring Expenses</p>
+          <p className="text-xs text-gray-400 mb-3">
+            These are your fixed monthly costs. We'll calculate how long your savings will last.
+          </p>
           <div className="space-y-2">
-            {cats.map((cat) => (
-              <div key={cat.key} className="flex items-center gap-2">
+            {expenses.map((exp) => (
+              <div key={exp.key} className="flex items-center gap-2">
                 <input
-                  value={cat.name}
-                  onChange={(e) => updateCat(cat.key, { name: e.target.value })}
-                  placeholder="Category name"
+                  value={exp.name}
+                  onChange={(e) => updateExpense(exp.key, { name: e.target.value })}
+                  placeholder="Expense name"
                   className="w-36 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
                 />
-                <select
-                  value={cat.type}
-                  onChange={(e) => updateCat(cat.key, { type: e.target.value as Category["type"] })}
-                  className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
-                >
-                  <option value="expense">Expense</option>
-                  <option value="income">Income</option>
-                </select>
                 <input
                   type="number"
                   min="0"
                   step="0.01"
                   placeholder="€/month"
-                  value={cat.plannedAmount}
-                  onChange={(e) => updateCat(cat.key, { plannedAmount: e.target.value })}
+                  value={exp.plannedAmount}
+                  onChange={(e) => updateExpense(exp.key, { plannedAmount: e.target.value })}
                   className="w-28 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
                 />
                 <button
                   type="button"
-                  onClick={() => removeCat(cat.key)}
+                  onClick={() => removeExpense(exp.key)}
                   className="text-sm text-gray-400 hover:text-red-500"
                 >
                   ✕
@@ -151,10 +146,10 @@ export default function SetupWizard() {
           </div>
           <button
             type="button"
-            onClick={addCat}
+            onClick={addExpense}
             className="mt-2 text-sm text-indigo-600 hover:text-indigo-800"
           >
-            + Add category
+            + Add expense
           </button>
         </div>
 
@@ -164,7 +159,7 @@ export default function SetupWizard() {
           type="submit"
           className="rounded-md bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700"
         >
-          Start tracking →
+          Calculate my runway →
         </button>
       </form>
     </div>
