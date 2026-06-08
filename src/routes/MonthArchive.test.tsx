@@ -1,10 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { store } from "../store";
 import MonthArchive from "./MonthArchive";
 
 beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-06-07T00:00:00.000Z"));
   localStorage.clear();
   store.setState({
     settings: { startingBalance: 3000, startingMonth: "2025-01" },
@@ -13,7 +15,7 @@ beforeEach(() => {
         id: "cat-1",
         name: "Rent",
         type: "expense",
-        plannedAmounts: [{ amount: 1000, from: "2025-01" }],
+        plannedAmount: 1000,
       },
     ],
     entries: [],
@@ -22,23 +24,28 @@ beforeEach(() => {
   });
 });
 
-it("renders MonthArchive without crashing", () => {
-  render(
-    <MemoryRouter>
-      <MonthArchive />
-    </MemoryRouter>,
-  );
-  expect(screen.getByText("Month Archive")).toBeInTheDocument();
+afterEach(() => {
+  vi.useRealTimers();
 });
 
-it("shows past months list when past months exist", () => {
-  render(
-    <MemoryRouter>
-      <MonthArchive />
-    </MemoryRouter>,
-  );
-  // startingMonth is 2025-01, current date is 2026-06, so there are past months
-  // The component should render month links without crashing
-  const heading = screen.getByText("Month Archive");
-  expect(heading).toBeInTheDocument();
+describe("MonthArchive", () => {
+  it("renders MonthArchive without crashing", () => {
+    render(
+      <MemoryRouter>
+        <MonthArchive />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText("Month Archive")).toBeInTheDocument();
+  });
+
+  it("shows past months list when past months exist", () => {
+    render(
+      <MemoryRouter>
+        <MonthArchive />
+      </MemoryRouter>,
+    );
+    // startingMonth is 2025-01, system time is 2026-06-07, so there are past months
+    const links = screen.getAllByRole("link");
+    expect(links.length).toBeGreaterThan(0);
+  });
 });
