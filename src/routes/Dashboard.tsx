@@ -207,9 +207,9 @@ export default function Dashboard() {
                 stroke="#6366f1"
                 strokeWidth={2}
                 dot={runway.overhang && lastChartPoint
-                  ? (props: { cx?: number; cy?: number; index?: number }): JSX.Element | null => {
+                  ? (props: { cx?: number; cy?: number; index?: number }): React.ReactElement<SVGElement> => {
                       const isLast = props.index === allChartData.length - 1;
-                      if (!isLast) return null;
+                      if (!isLast) return <g />;
                       const { cx, cy } = props;
                       return (
                         <circle
