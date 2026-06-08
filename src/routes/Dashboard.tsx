@@ -6,7 +6,6 @@ import {
   YAxis,
   Tooltip,
   ReferenceLine,
-  ReferenceDot,
   ResponsiveContainer,
 } from "recharts";
 import { useStore } from "../store";
@@ -208,9 +207,9 @@ export default function Dashboard() {
                 stroke="#6366f1"
                 strokeWidth={2}
                 dot={runway.overhang && lastChartPoint
-                  ? (props: any) => {
+                  ? (props: { cx?: number; cy?: number; index?: number }): JSX.Element | null => {
                       const isLast = props.index === allChartData.length - 1;
-                      if (!isLast) return <g />;
+                      if (!isLast) return null;
                       const { cx, cy } = props;
                       return (
                         <circle
