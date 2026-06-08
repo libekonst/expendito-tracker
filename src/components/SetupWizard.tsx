@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useStore } from "../store";
-import type { Category } from "../domain/types";
+import type { Expense } from "../domain/types";
 
 function currentMonth(): string {
   return new Date().toISOString().slice(0, 7);
@@ -9,7 +9,7 @@ function currentMonth(): string {
 type DraftCategory = {
   key: string; // local key for React list
   name: string;
-  type: Category["type"];
+  type: "expense" | "income";
   plannedAmount: string;
 };
 
@@ -60,15 +60,15 @@ export default function SetupWizard() {
     }
     setError("");
 
-    const categories = cats
+    const expenses: Omit<Expense, "id">[] = cats
       .filter((c) => c.name.trim())
       .map((c) => ({
         name: c.name.trim(),
-        type: c.type,
-        plannedAmount: parseFloat(c.plannedAmount) || 0,
+        type: c.type === "income" ? ("recurringIncome" as const) : ("recurringExpense" as const),
+        amount: parseFloat(c.plannedAmount) || 0,
       }));
 
-    completeWizard({ settings: { startingBalance, startingMonth }, categories });
+    completeWizard({ settings: { startingBalance, startingMonth }, expenses });
   }
 
   return (

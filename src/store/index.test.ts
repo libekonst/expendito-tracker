@@ -103,3 +103,51 @@ describe("storageUnavailable", () => {
     vi.restoreAllMocks();
   });
 });
+
+describe("completeWizard", () => {
+  it("completeWizard sets settings, mints IDs for expenses, and marks wizard completed", () => {
+    const store = createStore();
+    store.getState().completeWizard({
+      settings: { startingBalance: 5000, startingMonth: "2026-06" },
+      expenses: [{ name: "Rent", type: "recurringExpense", amount: 1200 }],
+    });
+    const state = store.getState();
+    expect(state.wizardCompleted).toBe(true);
+    expect(state.settings.startingBalance).toBe(5000);
+    expect(state.expenses).toHaveLength(1);
+    expect(state.expenses[0].id).toBeDefined();
+    expect(state.expenses[0].name).toBe("Rent");
+  });
+});
+
+describe("importAll", () => {
+  it("importAll overwrites expenses, incomes, and settings", () => {
+    const store = createStore();
+    store.getState().addExpense({ name: "Old", type: "recurringExpense", amount: 100 });
+    store.getState().importAll({
+      expenses: [{ id: "e1", name: "Rent", type: "recurringExpense", amount: 800 }],
+      incomes: [{ id: "i1", name: "Rental", type: "recurringIncome", amount: 300 }],
+      settings: { startingBalance: 10000, startingMonth: "2026-07" },
+    });
+    const state = store.getState();
+    expect(state.expenses).toHaveLength(1);
+    expect(state.expenses[0].name).toBe("Rent");
+    expect(state.incomes).toHaveLength(1);
+    expect(state.settings.startingBalance).toBe(10000);
+    expect(state.wizardCompleted).toBe(true);
+  });
+});
+
+describe("persistence", () => {
+  it("persists and reloads expenses and incomes across store instances", () => {
+    const store1 = createStore();
+    store1.getState().addExpense({ name: "Rent", type: "recurringExpense", amount: 900 });
+    store1.getState().addIncome({ name: "Salary", type: "recurringIncome", amount: 300 });
+
+    const store2 = createStore(); // reads from same localStorage
+    expect(store2.getState().expenses).toHaveLength(1);
+    expect(store2.getState().expenses[0].name).toBe("Rent");
+    expect(store2.getState().incomes).toHaveLength(1);
+    expect(store2.getState().incomes[0].name).toBe("Salary");
+  });
+});
