@@ -5,7 +5,7 @@ import type { Category, Entry, Settings } from "./types";
 const settings: Settings = { startingBalance: 10000, startingMonth: "2026-01" };
 
 const categories: Category[] = [
-  { id: "c1", name: "Rent", type: "expense", plannedAmounts: [{ amount: 900, from: "2026-01" }] },
+  { id: "c1", name: "Rent", type: "expense", plannedAmount: 900 },
 ];
 
 const entries: Entry[] = [

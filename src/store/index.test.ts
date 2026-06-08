@@ -8,14 +8,14 @@ beforeEach(() => {
 describe("category CRUD", () => {
   it("adds a category", () => {
     const store = createStore();
-    store.getState().addCategory({ name: "Rent", type: "expense", plannedAmounts: [{ amount: 900, from: "2026-01" }] });
+    store.getState().addCategory({ name: "Rent", type: "expense", plannedAmount: 900 });
     expect(store.getState().categories).toHaveLength(1);
     expect(store.getState().categories[0].name).toBe("Rent");
   });
 
   it("updates a category", () => {
     const store = createStore();
-    store.getState().addCategory({ name: "Rent", type: "expense", plannedAmounts: [] });
+    store.getState().addCategory({ name: "Rent", type: "expense", plannedAmount: 0 });
     const id = store.getState().categories[0].id;
     store.getState().updateCategory(id, { name: "Housing" });
     expect(store.getState().categories[0].name).toBe("Housing");
@@ -23,7 +23,7 @@ describe("category CRUD", () => {
 
   it("deletes a category and cascade-deletes its entries", () => {
     const store = createStore();
-    store.getState().addCategory({ name: "Rent", type: "expense", plannedAmounts: [] });
+    store.getState().addCategory({ name: "Rent", type: "expense", plannedAmount: 0 });
     const catId = store.getState().categories[0].id;
     store.getState().addEntry({ categoryId: catId, amount: 900, date: "2026-05-01" });
     store.getState().addEntry({ categoryId: catId, amount: 50, date: "2026-05-15" });
@@ -72,7 +72,7 @@ describe("selectRunwayProjection", () => {
   it("returns a projection that updates as entries are added", () => {
     const store = createStore();
     store.getState().updateSettings({ startingBalance: 2000, startingMonth: "2025-01" });
-    store.getState().addCategory({ name: "Rent", type: "expense", plannedAmounts: [{ amount: 1000, from: "2025-01" }] });
+    store.getState().addCategory({ name: "Rent", type: "expense", plannedAmount: 1000 });
 
     const before = selectRunwayProjection(store.getState());
     expect(before.runwayMonths).toBe(2);

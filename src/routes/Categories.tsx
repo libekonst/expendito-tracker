@@ -1,13 +1,6 @@
 import { useState } from "react";
 import { useStore } from "../store";
-import { resolveAmount } from "../domain/resolveAmount";
 import type { Category } from "../domain/types";
-
-function nextMonth(): string {
-  const d = new Date();
-  d.setMonth(d.getMonth() + 1);
-  return d.toISOString().slice(0, 7);
-}
 
 function currentMonth(): string {
   return new Date().toISOString().slice(0, 7);
@@ -36,22 +29,16 @@ export default function Categories() {
     setEditState({
       name: cat.name,
       type: cat.type,
-      plannedAmount: String(resolveAmount(cat, currentMonth())),
+      plannedAmount: String(cat.plannedAmount),
     });
   }
 
   function saveEdit(cat: Category) {
     const newAmount = parseFloat(editState.plannedAmount) || 0;
-    const currentPlanned = resolveAmount(cat, currentMonth());
-    const plannedAmounts =
-      newAmount !== currentPlanned
-        ? [...cat.plannedAmounts, { amount: newAmount, from: nextMonth() }]
-        : cat.plannedAmounts;
-
     updateCategory(cat.id, {
       name: editState.name,
       type: editState.type,
-      plannedAmounts,
+      plannedAmount: newAmount,
     });
     setEditingId(null);
   }
@@ -68,7 +55,7 @@ export default function Categories() {
     addCategory({
       name: addState.name.trim(),
       type: addState.type,
-      plannedAmounts: [{ amount: parseFloat(addState.plannedAmount) || 0, from: currentMonth() }],
+      plannedAmount: parseFloat(addState.plannedAmount) || 0,
     });
     setAdding(false);
     setAddState({ name: "", type: "expense", plannedAmount: "" });
@@ -158,7 +145,6 @@ export default function Categories() {
                   className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-indigo-500 focus:outline-none"
                 />
               </div>
-              <p className="text-xs text-gray-400">Planned amount changes take effect from next month.</p>
               <div className="flex gap-2">
                 <button onClick={() => saveEdit(cat)} className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700">
                   Save
@@ -176,7 +162,7 @@ export default function Categories() {
               </div>
               <div className="flex items-center gap-4">
                 <span className="text-sm tabular-nums text-gray-600">
-                  €{resolveAmount(cat, currentMonth()).toLocaleString("de-DE", { minimumFractionDigits: 2 })}/mo
+                  €{cat.plannedAmount.toLocaleString("de-DE", { minimumFractionDigits: 2 })}/mo
                 </span>
                 <button onClick={() => startEdit(cat)} className="text-sm text-indigo-600 hover:text-indigo-800">
                   Edit

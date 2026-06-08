@@ -6,14 +6,14 @@ const rent: Category = {
   id: "rent",
   name: "Rent",
   type: "expense",
-  plannedAmounts: [{ amount: 900, from: "2026-01" }],
+  plannedAmount: 900,
 };
 
 const freelance: Category = {
   id: "fl",
   name: "Freelance",
   type: "income",
-  plannedAmounts: [{ amount: 1000, from: "2026-01" }],
+  plannedAmount: 1000,
 };
 
 const entry = (categoryId: string, amount: number, date: string): Entry => ({
