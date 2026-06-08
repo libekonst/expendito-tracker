@@ -48,11 +48,32 @@ type PersistedSlice = {
   wizardCompleted?: boolean;
 };
 
+type LegacyCategory = {
+  id: string;
+  name: string;
+  type: "expense" | "income";
+  plannedAmounts?: Array<{ amount: number; from: string }>;
+};
+
+function migrateCategories(categories: LegacyCategory[]): Category[] {
+  return categories.map((cat) => {
+    if ("plannedAmounts" in cat && Array.isArray(cat.plannedAmounts)) {
+      const { plannedAmounts, ...rest } = cat;
+      return { ...rest, plannedAmount: plannedAmounts[0]?.amount ?? 0 };
+    }
+    return cat as Category;
+  });
+}
+
 function loadPersistedState(): PersistedSlice {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return {};
-    return (JSON.parse(raw) as { state?: PersistedSlice }).state ?? {};
+    const slice = (JSON.parse(raw) as { state?: PersistedSlice & { categories?: LegacyCategory[] } }).state ?? {};
+    if (slice.categories) {
+      slice.categories = migrateCategories(slice.categories as LegacyCategory[]);
+    }
+    return slice;
   } catch {
     return {};
   }

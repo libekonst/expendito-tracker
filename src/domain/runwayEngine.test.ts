@@ -11,14 +11,14 @@ const expenseCategory = (id: string, amount: number): Category => ({
   id,
   name: id,
   type: "expense",
-  plannedAmounts: [{ amount, from: "2026-01" }],
+  plannedAmount: amount,
 });
 
 const incomeCategory = (id: string, amount: number): Category => ({
   id,
   name: id,
   type: "income",
-  plannedAmounts: [{ amount, from: "2026-01" }],
+  plannedAmount: amount,
 });
 
 describe("calculateRunway", () => {

@@ -2,7 +2,9 @@ export type Category = {
   id: string;
   name: string;
   type: "expense" | "income";
-  plannedAmounts: Array<{ amount: number; from: string }>; // from = "YYYY-MM"
+  plannedAmount: number;
+  from?: string;  // active from this month (inclusive); absent = from the beginning
+  until?: string; // active until this month (inclusive); absent = forever
 };
 
 export type Entry = {

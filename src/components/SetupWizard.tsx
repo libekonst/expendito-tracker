@@ -65,7 +65,7 @@ export default function SetupWizard() {
       .map((c) => ({
         name: c.name.trim(),
         type: c.type,
-        plannedAmounts: [{ amount: parseFloat(c.plannedAmount) || 0, from: startingMonth }],
+        plannedAmount: parseFloat(c.plannedAmount) || 0,
       }));
 
     completeWizard({ settings: { startingBalance, startingMonth }, categories });
