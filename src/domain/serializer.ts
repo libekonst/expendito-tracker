@@ -1,8 +1,8 @@
-import type { Category, Entry, Settings } from "./types";
+import type { Expense, Income, Settings } from "./types";
 
 const VERSION = 1;
 
-type Payload = { categories: Category[]; entries: Entry[]; settings: Settings };
+type Payload = { expenses: Expense[]; incomes: Income[]; settings: Settings };
 type Export = Payload & { version: number };
 
 export function exportData(payload: Payload): string {
@@ -21,13 +21,13 @@ export function importData(json: string): Payload {
   if (
     typeof parsed !== "object" ||
     parsed === null ||
-    !Array.isArray((parsed as Export).categories) ||
-    !Array.isArray((parsed as Export).entries) ||
+    !Array.isArray((parsed as Export).expenses) ||
+    !Array.isArray((parsed as Export).incomes) ||
     typeof (parsed as Export).settings !== "object"
   ) {
     throw new Error("Invalid backup file: missing required fields.");
   }
 
-  const { categories, entries, settings } = parsed as Export;
-  return { categories, entries, settings };
+  const { expenses, incomes, settings } = parsed as Export;
+  return { expenses, incomes, settings };
 }
