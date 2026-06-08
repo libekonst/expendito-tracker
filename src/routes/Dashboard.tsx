@@ -17,6 +17,27 @@ function currentMonth(): string {
   return new Date().toISOString().slice(0, 7);
 }
 
+function addMonth(yyyymm: string): string {
+  const [y, m] = yyyymm.split("-").map(Number);
+  return m === 12
+    ? `${y + 1}-01`
+    : `${y}-${String(m + 1).padStart(2, "0")}`;
+}
+
+function monthDiff(from: string, to: string): number {
+  const [fy, fm] = from.split("-").map(Number);
+  const [ty, tm] = to.split("-").map(Number);
+  return (ty - fy) * 12 + (tm - fm);
+}
+
+function daysUntil(yyyymm: string): number {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const [y, m] = yyyymm.split("-").map(Number);
+  const target = new Date(y, m - 1, 1);
+  return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+}
+
 function formatRunwayEnd(months: RunwayResult["months"]): string {
   const last = months[months.length - 1];
   if (!last) return "—";
@@ -29,7 +50,18 @@ function formatRunwayEnd(months: RunwayResult["months"]): string {
 
 function shortMonth(yyyymm: string): string {
   const [y, m] = yyyymm.split("-");
-  return new Date(Number(y), Number(m) - 1).toLocaleString("en-GB", { month: "short", year: "2-digit" });
+  return new Date(Number(y), Number(m) - 1).toLocaleString("en-GB", {
+    month: "short",
+    year: "2-digit",
+  });
+}
+
+function longMonth(yyyymm: string): string {
+  const [y, m] = yyyymm.split("-");
+  return new Date(Number(y), Number(m) - 1).toLocaleString("en-GB", {
+    month: "long",
+    year: "numeric",
+  });
 }
 
 export default function Dashboard() {
@@ -43,18 +75,33 @@ export default function Dashboard() {
   const storageUnavailable = useStore((s) => s.storageUnavailable);
   const cm = currentMonth();
 
+  const isFutureStart = settings.startingMonth > cm;
+  const waitingMonthCount = isFutureStart ? monthDiff(cm, settings.startingMonth) : 0;
+  const totalMonths = waitingMonthCount + runway.runwayMonths;
+  const daysUntilBurning = isFutureStart ? daysUntil(settings.startingMonth) : null;
+
   const runwayEnd = formatRunwayEnd(runway.months);
-  const runwayLabel = `${runway.runwayMonths} months · runs out ${runwayEnd}`;
 
-  // Zero-crossing month for the reference line
-  const zeroMonth = runway.months.find((m) => m.closingBalance <= 0);
+  // Flat waiting-period months prepended to the chart when start is in the future
+  const waitingChartData = useMemo(() => {
+    if (!isFutureStart) return [];
+    const data: { month: string; balance: number }[] = [];
+    let m = cm;
+    while (m < settings.startingMonth) {
+      data.push({ month: shortMonth(m), balance: Math.round(settings.startingBalance) });
+      m = addMonth(m);
+    }
+    return data;
+  }, [isFutureStart, settings.startingMonth, settings.startingBalance, cm]);
 
-  // Chart data — all months with a label
-  const chartData = runway.months.map((m) => ({
+  const runwayChartData = runway.months.map((m) => ({
     month: shortMonth(m.month),
     balance: Math.round(m.closingBalance),
     projected: m.isProjected,
   }));
+
+  const allChartData = [...waitingChartData, ...runwayChartData];
+  const zeroMonth = runway.months.find((m) => m.closingBalance <= 0);
 
   return (
     <div className="space-y-10">
@@ -66,11 +113,21 @@ export default function Dashboard() {
 
       {/* Runway counter */}
       <div className="text-center">
-        <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Runway</p>
-        <p className="mt-2 text-6xl font-bold tabular-nums text-gray-900">
-          {runway.runwayMonths}
+        <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+          Runway
         </p>
-        <p className="mt-1 text-base text-gray-500">{runwayLabel}</p>
+        <p className="mt-2 text-6xl font-bold tabular-nums text-gray-900">
+          {totalMonths}
+        </p>
+        <p className="mt-1 text-base text-gray-500">
+          {totalMonths} months · runs out {runwayEnd}
+        </p>
+        {isFutureStart && daysUntilBurning !== null && (
+          <p className="mt-2 text-sm font-medium text-amber-600">
+            {daysUntilBurning} days until savings start burning · starts{" "}
+            {longMonth(settings.startingMonth)}
+          </p>
+        )}
       </div>
 
       {/* Current month detail */}
@@ -81,16 +138,23 @@ export default function Dashboard() {
         <MonthDetail
           month={cm}
           isCurrentMonth={true}
-          openingBalance={runway.months.find((m) => m.month === cm)?.openingBalance ?? 0}
+          actualsOnly={isFutureStart}
+          openingBalance={
+            runway.months.find((m) => m.month === cm)?.openingBalance ??
+            settings.startingBalance
+          }
         />
       </div>
 
       {/* Balance chart */}
-      {chartData.length > 0 && (
+      {allChartData.length > 0 && (
         <div>
           <p className="mb-3 text-sm font-medium text-gray-500">Balance projection</p>
           <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+            <LineChart
+              data={allChartData}
+              margin={{ top: 8, right: 8, bottom: 0, left: 0 }}
+            >
               <XAxis
                 dataKey="month"
                 tick={{ fontSize: 11, fill: "#9ca3af" }}
@@ -106,9 +170,10 @@ export default function Dashboard() {
                 width={40}
               />
               <Tooltip
-                formatter={(v: number) =>
-                  [`€${v.toLocaleString("de-DE", { minimumFractionDigits: 0 })}`, "Balance"]
-                }
+                formatter={(v: number) => [
+                  `€${v.toLocaleString("de-DE", { minimumFractionDigits: 0 })}`,
+                  "Balance",
+                ]}
                 contentStyle={{
                   fontSize: 12,
                   borderRadius: 8,
@@ -116,31 +181,46 @@ export default function Dashboard() {
                   boxShadow: "0 2px 8px rgba(0,0,0,.12)",
                 }}
               />
-              {/* Horizontal zero line */}
               <ReferenceLine y={0} stroke="#e5e7eb" strokeWidth={1} />
-              {/* Vertical marker at runway end */}
               {zeroMonth && (
                 <ReferenceLine
                   x={shortMonth(zeroMonth.month)}
                   stroke="#ef4444"
                   strokeDasharray="4 2"
-                  label={{ value: shortMonth(zeroMonth.month), position: "top", fontSize: 10, fill: "#ef4444" }}
+                  label={{
+                    value: shortMonth(zeroMonth.month),
+                    position: "top",
+                    fontSize: 10,
+                    fill: "#ef4444",
+                  }}
                 />
               )}
-              {/* Past months — solid */}
+              {/* Waiting period — flat gray line */}
+              {waitingChartData.length > 0 && (
+                <Line
+                  dataKey="balance"
+                  data={waitingChartData}
+                  stroke="#d1d5db"
+                  strokeWidth={2}
+                  dot={false}
+                  connectNulls
+                  isAnimationActive={false}
+                />
+              )}
+              {/* Past months — solid indigo */}
               <Line
                 dataKey="balance"
-                data={chartData.filter((d) => !d.projected)}
+                data={runwayChartData.filter((d) => !d.projected)}
                 stroke="#6366f1"
                 strokeWidth={2}
                 dot={false}
                 connectNulls
                 isAnimationActive={false}
               />
-              {/* Projected months — dashed */}
+              {/* Projected months — dashed indigo */}
               <Line
                 dataKey="balance"
-                data={chartData.filter((d) => d.projected)}
+                data={runwayChartData.filter((d) => d.projected)}
                 stroke="#6366f1"
                 strokeWidth={2}
                 strokeDasharray="5 3"
