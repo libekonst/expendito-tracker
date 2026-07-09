@@ -105,22 +105,6 @@ describe("storageUnavailable", () => {
   });
 });
 
-describe("completeWizard", () => {
-  it("completeWizard sets settings, mints IDs for expenses, and marks wizard completed", () => {
-    const store = createStore();
-    store.getState().completeWizard({
-      settings: { startingBalance: 5000, startingMonth: "2026-06" },
-      expenses: [{ name: "Rent", type: "recurringExpense", amount: 1200 }],
-    });
-    const state = store.getState();
-    expect(state.wizardCompleted).toBe(true);
-    expect(state.settings.startingBalance).toBe(5000);
-    expect(state.expenses).toHaveLength(1);
-    expect(state.expenses[0].id).toBeDefined();
-    expect(state.expenses[0].name).toBe("Rent");
-  });
-});
-
 describe("importAll", () => {
   it("importAll overwrites expenses, incomes, and settings", () => {
     const store = createStore();
@@ -135,7 +119,6 @@ describe("importAll", () => {
     expect(state.expenses[0].name).toBe("Rent");
     expect(state.incomes).toHaveLength(1);
     expect(state.settings.startingBalance).toBe(10000);
-    expect(state.wizardCompleted).toBe(true);
   });
 });
 

@@ -245,6 +245,45 @@ function RecurringSection<T extends Expense | Income>({
   );
 }
 
+function StartingPointCard({
+  startingBalance,
+  startingMonth,
+  onUpdate,
+}: {
+  startingBalance: number;
+  startingMonth: string;
+  onUpdate: (patch: { startingBalance?: number; startingMonth?: string }) => void;
+}) {
+  return (
+    <section className="space-y-3">
+      <h2 className="font-display text-base font-semibold text-ink">Starting point</h2>
+      <div className="grid grid-cols-2 gap-3 rounded-xl border border-hairline bg-white p-4">
+        <div>
+          <label className="block text-xs font-medium text-muted">Starting balance</label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="e.g. 20000"
+            value={startingBalance === 0 ? "" : startingBalance}
+            onChange={(e) => onUpdate({ startingBalance: parseFloat(e.target.value) || 0 })}
+            className="mt-1 w-full rounded-lg border border-hairline px-3 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-muted">Starting month</label>
+          <input
+            type="month"
+            value={startingMonth}
+            onChange={(e) => onUpdate({ startingMonth: e.target.value })}
+            className="mt-1 w-full rounded-lg border border-hairline px-3 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent"
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function OneTimeSection<T extends Expense | Income>({
   title,
   items,
@@ -335,6 +374,7 @@ export default function Overview() {
   const addIncome = useStore((s) => s.addIncome);
   const updateIncome = useStore((s) => s.updateIncome);
   const deleteIncome = useStore((s) => s.deleteIncome);
+  const updateSettings = useStore((s) => s.updateSettings);
 
   const runway = useMemo(
     () => calculateRunway(settings, expenses, incomes),
@@ -387,6 +427,10 @@ export default function Overview() {
 
   const lastChartPoint = allChartData.length > 0 ? allChartData[allChartData.length - 1] : null;
 
+  const emptyOnboarding = expenses.length === 0 && incomes.length === 0;
+  const noBurn = !emptyOnboarding && netMonthlyBurn <= 0;
+  const showChart = !emptyOnboarding && !noBurn && allChartData.length > 0;
+
   const recurringExpenses = expenses.filter((e) => e.type === "recurringExpense");
   const oneTimeExpenses = expenses.filter((e) => e.type === "oneTimeExpense");
   const recurringIncomes = incomes.filter((i) => i.type === "recurringIncome");
@@ -406,16 +450,43 @@ export default function Overview() {
           <div className="space-y-8 rounded-2xl border border-hairline bg-white p-6 md:p-7">
             <div>
               <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted">Runway</p>
-              <p className="font-display mt-2 text-7xl font-semibold tabular-nums leading-none text-ink">
-                {runway.capExceeded ? "120+" : runway.remainingMonths}
-              </p>
-              <div className="runway-strip mt-4 w-full" />
-              <p className="mt-3 text-sm text-muted">
-                {runway.capExceeded ? "120+" : runway.totalMonths} months total · lasts through{" "}
-                <span className="font-medium text-ink">
-                  {runway.endMonth ? formatMonth(runway.endMonth, { month: "short", year: "numeric" }) : "—"}
-                </span>
-              </p>
+
+              {emptyOnboarding ? (
+                <>
+                  <div className="hero-glass mt-4 rounded-2xl px-6 py-9 text-center">
+                    <div className="glow-dot mx-auto" />
+                    <p className="font-display mt-4 text-xl font-semibold text-ink">
+                      Add your numbers to see your runway
+                    </p>
+                    <p className="mt-2 text-sm text-muted">
+                      Starting balance and a monthly expense are all it takes.
+                    </p>
+                  </div>
+                  <div className="runway-strip runway-strip--unlit mt-4 w-full" />
+                </>
+              ) : noBurn ? (
+                <>
+                  <p className="font-display mt-2 text-5xl font-semibold text-ink">No burn</p>
+                  <div className="runway-strip mt-4 w-full" />
+                  <p className="mt-3 text-sm text-muted">
+                    Your income covers your expenses — savings hold steady.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-display mt-2 text-7xl font-semibold tabular-nums leading-none text-ink">
+                    {runway.capExceeded ? "120+" : runway.remainingMonths}
+                  </p>
+                  <div className="runway-strip mt-4 w-full" />
+                  <p className="mt-3 text-sm text-muted">
+                    {runway.capExceeded ? "120+" : runway.totalMonths} months total · lasts through{" "}
+                    <span className="font-medium text-ink">
+                      {runway.endMonth ? formatMonth(runway.endMonth, { month: "short", year: "numeric" }) : "—"}
+                    </span>
+                  </p>
+                </>
+              )}
+
               {isFutureStart && daysUntilBurning !== null && (
                 <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
                   {daysUntilBurning} days until runway starts · {formatMonth(settings.startingMonth, { month: "long", year: "numeric" })}
@@ -429,7 +500,7 @@ export default function Overview() {
               )}
             </div>
 
-            {allChartData.length > 0 && (
+            {showChart && (
               <div>
                 <ResponsiveContainer width="100%" height={140}>
                   <LineChart data={allChartData} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
@@ -537,6 +608,12 @@ export default function Overview() {
               What goes in and out each month — edit it here and the runway updates instantly.
             </p>
           </div>
+
+          <StartingPointCard
+            startingBalance={settings.startingBalance}
+            startingMonth={settings.startingMonth}
+            onUpdate={updateSettings}
+          />
 
           <RecurringSection
             title="Monthly Expenses"

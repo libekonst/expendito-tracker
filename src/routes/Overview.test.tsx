@@ -58,7 +58,6 @@ beforeEach(() => {
     expenses: [{ id: "e1", name: "Rent", type: "recurringExpense", amount: 500 }],
     incomes: [],
     settings: { startingBalance: 10000, startingMonth: NOW },
-    wizardCompleted: true,
     storageUnavailable: false,
   });
 });
@@ -191,5 +190,64 @@ describe("chart has waitingBalance during waiting period", () => {
     const data = capturedLineChartData[0] as Array<{ waitingBalance?: number }>;
     const withWaiting = data.filter((d) => d.waitingBalance !== undefined);
     expect(withWaiting.length).toBeGreaterThan(0);
+  });
+});
+
+// ─── Hero states ────────────────────────────────────────────────────────────
+
+describe("empty onboarding hero", () => {
+  it("shows the glass prompt and no chart when there are no expenses or incomes", () => {
+    store.setState({
+      expenses: [],
+      incomes: [],
+      settings: { startingBalance: 0, startingMonth: NOW },
+    });
+    renderDashboard();
+    expect(screen.getByText("Add your numbers to see your runway")).toBeInTheDocument();
+    expect(document.querySelector('[data-testid="line-chart"]')).toBeNull();
+  });
+});
+
+describe("no-burn hero", () => {
+  it("shows the No burn message and no chart when income covers expenses", () => {
+    store.setState({
+      expenses: [{ id: "e1", name: "Rent", type: "recurringExpense", amount: 500 }],
+      incomes: [{ id: "i1", name: "Salary", type: "recurringIncome", amount: 800 }],
+      settings: { startingBalance: 10000, startingMonth: NOW },
+    });
+    renderDashboard();
+    expect(screen.getByText("No burn")).toBeInTheDocument();
+    expect(
+      screen.getByText("Your income covers your expenses — savings hold steady."),
+    ).toBeInTheDocument();
+    expect(document.querySelector('[data-testid="line-chart"]')).toBeNull();
+  });
+});
+
+describe("normal hero", () => {
+  it("does not show empty or no-burn copy when there is a positive burn", () => {
+    renderDashboard();
+    expect(screen.queryByText("Add your numbers to see your runway")).not.toBeInTheDocument();
+    expect(screen.queryByText("No burn")).not.toBeInTheDocument();
+  });
+});
+
+// ─── Starting point card ──────────────────────────────────────────────────────
+
+describe("starting point card", () => {
+  it("shows the current starting balance in the field", () => {
+    renderDashboard();
+    const balanceField = document.querySelector('input[placeholder="e.g. 20000"]') as HTMLInputElement;
+    expect(balanceField).not.toBeNull();
+    expect(balanceField.value).toBe("10000");
+  });
+
+  it("shows an empty balance field with placeholder when startingBalance is 0", () => {
+    store.setState({
+      settings: { startingBalance: 0, startingMonth: NOW },
+    });
+    renderDashboard();
+    const balanceField = document.querySelector('input[placeholder="e.g. 20000"]') as HTMLInputElement;
+    expect(balanceField.value).toBe("");
   });
 });

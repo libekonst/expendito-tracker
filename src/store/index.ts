@@ -9,7 +9,6 @@ type State = {
   incomes: Income[];
   settings: Settings;
   storageUnavailable: boolean;
-  wizardCompleted: boolean;
 };
 
 type Actions = {
@@ -20,7 +19,6 @@ type Actions = {
   updateIncome: (id: string, patch: Partial<Pick<Income, "name" | "amount">>) => void;
   deleteIncome: (id: string) => void;
   updateSettings: (patch: Partial<Settings>) => void;
-  completeWizard: (payload: { settings: Settings; expenses: Omit<Expense, "id">[] }) => void;
   importAll: (payload: { expenses: Expense[]; incomes: Income[]; settings: Settings }) => void;
 };
 
@@ -37,7 +35,6 @@ type PersistedSlice = {
   expenses?: Expense[];
   incomes?: Income[];
   settings?: Settings;
-  wizardCompleted?: boolean;
 };
 
 function loadPersistedState(): PersistedSlice {
@@ -59,7 +56,6 @@ function saveState(state: State): void {
           expenses: state.expenses,
           incomes: state.incomes,
           settings: state.settings,
-          wizardCompleted: state.wizardCompleted,
         },
       }),
     );
@@ -87,7 +83,6 @@ export function createStore() {
     incomes: persisted.incomes ?? [],
     settings: persisted.settings ?? defaultSettings,
     storageUnavailable: !storageAvailable,
-    wizardCompleted: persisted.wizardCompleted ?? false,
 
     addExpense: (expense) =>
       set((s) => ({ expenses: [...s.expenses, { id: nanoid(), ...expense }] })),
@@ -114,15 +109,7 @@ export function createStore() {
     updateSettings: (patch) =>
       set((s) => ({ settings: { ...s.settings, ...patch } })),
 
-    completeWizard: ({ settings, expenses }) =>
-      set({
-        settings,
-        expenses: expenses.map((e) => ({ id: nanoid(), ...e })),
-        wizardCompleted: true,
-      }),
-
-    importAll: (payload) =>
-      set({ ...payload, wizardCompleted: true }),
+    importAll: (payload) => set(payload),
   }));
 
   if (storageAvailable) {
