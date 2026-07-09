@@ -26,35 +26,12 @@ function daysUntil(yyyymm: string): number {
   return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
-function shortMonth(yyyymm: string): string {
+function formatMonth(
+  yyyymm: string,
+  opts: Intl.DateTimeFormatOptions,
+): string {
   const [y, m] = yyyymm.split("-");
-  return new Date(Number(y), Number(m) - 1).toLocaleString("en-GB", {
-    month: "short",
-    year: "2-digit",
-  });
-}
-
-function longMonth(yyyymm: string): string {
-  const [y, m] = yyyymm.split("-");
-  return new Date(Number(y), Number(m) - 1).toLocaleString("en-GB", {
-    month: "long",
-    year: "numeric",
-  });
-}
-
-function formatEndMonth(yyyymm: string): string {
-  const [y, m] = yyyymm.split("-");
-  return new Date(Number(y), Number(m) - 1).toLocaleString("en-GB", {
-    month: "short",
-    year: "numeric",
-  });
-}
-
-function monthName(yyyymm: string): string {
-  const [y, m] = yyyymm.split("-");
-  return new Date(Number(y), Number(m) - 1).toLocaleString("en-GB", {
-    month: "long",
-  });
+  return new Date(Number(y), Number(m) - 1).toLocaleString("en-GB", opts);
 }
 
 export default function Dashboard() {
@@ -89,7 +66,10 @@ export default function Dashboard() {
     if (isFutureStart) {
       let month = cm;
       while (month < settings.startingMonth) {
-        points.push({ month: shortMonth(month), waitingBalance: settings.startingBalance });
+        points.push({
+          month: formatMonth(month, { month: "short", year: "2-digit" }),
+          waitingBalance: settings.startingBalance,
+        });
         month = addMonth(month);
       }
     }
@@ -100,7 +80,11 @@ export default function Dashboard() {
         isFutureStart && m.month === settings.startingMonth
           ? { waitingBalance: Math.round(runway.effectiveBalance) }
           : {};
-      points.push({ month: shortMonth(m.month), ...bridgePoint, balance });
+      points.push({
+        month: formatMonth(m.month, { month: "short", year: "2-digit" }),
+        ...bridgePoint,
+        balance,
+      });
     }
 
     return points;
@@ -127,12 +111,12 @@ export default function Dashboard() {
         </p>
         <p className="mt-1 text-base text-gray-500">
           {runway.capExceeded ? "120+" : runway.totalMonths} months total · lasts through{" "}
-          {runway.endMonth ? formatEndMonth(runway.endMonth) : "—"}
+          {runway.endMonth ? formatMonth(runway.endMonth, { month: "short", year: "numeric" }) : "—"}
         </p>
         {isFutureStart && daysUntilBurning !== null && (
           <p className="mt-2 text-sm font-medium text-amber-600">
             {daysUntilBurning} days until runway starts · starts{" "}
-            {longMonth(settings.startingMonth)}
+            {formatMonth(settings.startingMonth, { month: "long", year: "numeric" })}
           </p>
         )}
       </div>
@@ -141,7 +125,7 @@ export default function Dashboard() {
       {runway.overhang && runway.endMonth && (
         <div className="text-center text-sm text-gray-500">
           €{runway.overhang.remainingBalance.toLocaleString("de-DE", { minimumFractionDigits: 0 })} remaining · €{runway.overhang.shortfall.toLocaleString("de-DE", { minimumFractionDigits: 0 })} short of{" "}
-          {monthName(addMonth(runway.endMonth))}
+          {formatMonth(addMonth(runway.endMonth), { month: "long" })}
         </div>
       )}
 
