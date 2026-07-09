@@ -135,6 +135,8 @@ function RecurringSection<T extends Expense | Income>({
     }
   }
 
+  const total = items.reduce((sum, item) => sum + item.amount, 0);
+
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between">
@@ -226,6 +228,18 @@ function RecurringSection<T extends Expense | Income>({
             </div>
           ),
         )}
+        {items.length > 0 && (
+          <div
+            className="flex items-center justify-between bg-paper/60 px-4 py-3"
+            style={{ borderTopWidth: 1, borderColor: "var(--color-hairline)" }}
+          >
+            <span className="text-sm font-medium text-ink">Total</span>
+            <span className="font-mono text-sm font-medium tabular-nums text-ink">
+              {eur(total, 2)}
+              {unit}
+            </span>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -243,6 +257,8 @@ function OneTimeSection<T extends Expense | Income>({
   onDelete: (id: string) => void;
 }) {
   const [adding, setAdding] = useState(false);
+
+  const total = items.reduce((sum, item) => sum + item.amount, 0);
 
   return (
     <section className="space-y-3">
@@ -291,6 +307,15 @@ function OneTimeSection<T extends Expense | Income>({
             </div>
           </div>
         ))}
+        {items.length > 0 && (
+          <div
+            className="flex items-center justify-between bg-paper/60 px-4 py-3"
+            style={{ borderTopWidth: 1, borderColor: "var(--color-hairline)" }}
+          >
+            <span className="text-sm font-medium text-ink">Total</span>
+            <span className="font-mono text-sm font-medium tabular-nums text-ink">{eur(total, 2)}</span>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -514,7 +539,7 @@ export default function Overview() {
           </div>
 
           <RecurringSection
-            title="Recurring Expenses"
+            title="Monthly Expenses"
             unit="/mo"
             items={recurringExpenses}
             onAdd={(name, amount) => addExpense({ name, amount, type: "recurringExpense" })}
@@ -523,7 +548,7 @@ export default function Overview() {
           />
 
           <RecurringSection
-            title="Recurring Income"
+            title="Monthly Income"
             unit="/mo"
             items={recurringIncomes}
             onAdd={(name, amount) => addIncome({ name, amount, type: "recurringIncome" })}
