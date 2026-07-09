@@ -9,13 +9,6 @@ const JUNE_7_2026 = new Date("2026-06-07T00:00:00.000Z");
 const NOW = "2026-06";
 const FUTURE_START = "2026-08"; // 2 months ahead of NOW
 
-const RENT_CATEGORY = {
-  id: "c1",
-  name: "Rent",
-  type: "expense" as const,
-  plannedAmount: 500,
-};
-
 // Capture what data and props are passed to Recharts components
 const capturedLineChartData: unknown[] = [];
 const capturedLineProps: Array<{ dataKey?: string; hasOwnData: boolean }> = [];
@@ -43,6 +36,7 @@ vi.mock("recharts", async () => {
     YAxis: () => null,
     Tooltip: () => null,
     ReferenceLine: () => null,
+    ReferenceDot: () => null,
   };
 });
 
@@ -54,14 +48,6 @@ function renderDashboard() {
   );
 }
 
-function shortMonth(yyyymm: string): string {
-  const [y, m] = yyyymm.split("-");
-  return new Date(Number(y), Number(m) - 1).toLocaleString("en-GB", {
-    month: "short",
-    year: "2-digit",
-  });
-}
-
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(JUNE_7_2026);
@@ -69,8 +55,8 @@ beforeEach(() => {
   capturedLineChartData.length = 0;
   capturedLineProps.length = 0;
   store.setState({
-    categories: [RENT_CATEGORY],
-    entries: [],
+    expenses: [{ id: "e1", name: "Rent", type: "recurringExpense", amount: 500 }],
+    incomes: [],
     settings: { startingBalance: 10000, startingMonth: NOW },
     wizardCompleted: true,
     storageUnavailable: false,
@@ -81,221 +67,128 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-// ─── Runway counter ──────────────────────────────────────────────────────────
+// ─── Runway headline ──────────────────────────────────────────────────────────
 
-describe("runway counter", () => {
-  it("shows runway months only when startingMonth is the current month", () => {
+describe("remaining months hero", () => {
+  it("shows remainingMonths as the large hero number", () => {
+    // balance=10000, expense €500/month, startingMonth=NOW (2026-06)
+    // Engine: months 2026-06 through 2026-01+20 = 2028-01 (20 total)
+    // remainingMonths = months strictly after 2026-06 = 19
     renderDashboard();
-    // 10 000 / 500 = 20 months
-    expect(screen.getByText("20")).toBeInTheDocument();
-  });
-
-  it("shows total months (waiting period + runway) when startingMonth is in the future", () => {
-    store.setState({ settings: { startingBalance: 10000, startingMonth: FUTURE_START } });
-    renderDashboard();
-    // 2 waiting months (Jun + Jul) + 20 runway months = 22
-    expect(screen.getByText("22")).toBeInTheDocument();
+    expect(screen.getByText("19")).toBeInTheDocument();
   });
 });
 
-// ─── Future-start indicator ───────────────────────────────────────────────────
-
-describe("future-start indicator", () => {
-  it("is absent when startingMonth is the current month", () => {
+describe("total months secondary", () => {
+  it("secondary text contains totalMonths months total", () => {
     renderDashboard();
-    expect(
-      screen.queryByText(/days until savings start burning/),
-    ).not.toBeInTheDocument();
+    expect(screen.getByText(/20 months total/)).toBeInTheDocument();
   });
+});
 
-  it("shows a days-countdown and the start month when startingMonth is in the future", () => {
-    store.setState({ settings: { startingBalance: 10000, startingMonth: FUTURE_START } });
+describe("end month secondary", () => {
+  it("secondary text contains lasts through and formatted endMonth", () => {
     renderDashboard();
-    expect(screen.getByText(/days until savings start burning/)).toBeInTheDocument();
+    expect(screen.getByText(/lasts through/)).toBeInTheDocument();
+  });
+});
+
+// ─── Waiting period ───────────────────────────────────────────────────────────
+
+describe("waiting period countdown", () => {
+  it("shows days until runway starts and start month when startingMonth is future", () => {
+    store.setState({
+      settings: { startingBalance: 10000, startingMonth: FUTURE_START },
+    });
+    renderDashboard();
+    expect(screen.getByText(/days until runway starts/)).toBeInTheDocument();
     expect(screen.getByText(/starts August 2026/)).toBeInTheDocument();
   });
 });
 
-// ─── Current-month detail during waiting period ───────────────────────────────
-
-describe("current month during waiting period", () => {
-  it("does not deduct planned expenses when startingMonth is in the future and nothing is logged", () => {
-    store.setState({ settings: { startingBalance: 10000, startingMonth: FUTURE_START } });
+describe("no waiting period indicator", () => {
+  it("does not show days until runway starts when startingMonth is current month", () => {
     renderDashboard();
-    // Rent is €500/mo — if incorrectly applied, closing balance would be €9.500,00
-    expect(screen.queryByText("€9.500,00")).not.toBeInTheDocument();
+    expect(screen.queryByText(/days until runway starts/)).not.toBeInTheDocument();
+  });
+});
+
+// ─── Overhang block ───────────────────────────────────────────────────────────
+
+describe("overhang block shown", () => {
+  it("shows overhang block when there is a partial month remaining", () => {
+    // balance=2500, expense €1000: month 1 closes at 1500, month 2 closes at 500,
+    // month 3 would close at -500 → overhang: remainingBalance=500, shortfall=500
+    store.setState({
+      expenses: [{ id: "e1", name: "Rent", type: "recurringExpense", amount: 1000 }],
+      incomes: [],
+      settings: { startingBalance: 2500, startingMonth: NOW },
+    });
+    renderDashboard();
+    expect(screen.getByText(/€500 remaining/)).toBeInTheDocument();
+    expect(screen.getByText(/€500 short of/)).toBeInTheDocument();
+  });
+});
+
+describe("overhang block hidden", () => {
+  it("does not show overhang block when balance divides evenly", () => {
+    // balance=2000, expense €1000: exactly 2 months, no overhang
+    store.setState({
+      expenses: [{ id: "e1", name: "Rent", type: "recurringExpense", amount: 1000 }],
+      incomes: [],
+      settings: { startingBalance: 2000, startingMonth: NOW },
+    });
+    renderDashboard();
+    expect(screen.queryByText(/remaining/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/short of/)).not.toBeInTheDocument();
+  });
+});
+
+// ─── Total monthly expenses ───────────────────────────────────────────────────
+
+describe("total monthly expenses shown", () => {
+  it("shows gross recurring expense total (excludes one-time expenses)", () => {
+    store.setState({
+      expenses: [
+        { id: "e1", name: "Rent", type: "recurringExpense", amount: 500 },
+        { id: "e2", name: "Laptop", type: "oneTimeExpense", amount: 1000 },
+      ],
+      incomes: [],
+      settings: { startingBalance: 10000, startingMonth: NOW },
+    });
+    renderDashboard();
+    // Should show €500/month (only recurring, not the one-time €1000)
+    expect(screen.getByText(/Gross monthly expenses:.*€500\/month/)).toBeInTheDocument();
   });
 });
 
 // ─── Chart structure ──────────────────────────────────────────────────────────
 
-describe("Dashboard chart — waiting period (future startingMonth)", () => {
-  it("passes a unified data array to LineChart that includes waiting-period months", () => {
-    store.setState({
-      settings: { startingBalance: 5000, startingMonth: FUTURE_START },
-      categories: [{ id: "cat1", name: "Rent", type: "expense", plannedAmount: 500 }],
-    });
-
+describe("chart has no dashedBalance line", () => {
+  it("does not render a line-dashedBalance data-testid", () => {
     renderDashboard();
-    expect(capturedLineChartData.length).toBeGreaterThan(0);
-
-    const data = capturedLineChartData[0] as Array<{
-      month: string;
-      waitingBalance?: number;
-      solidBalance?: number;
-      dashedBalance?: number;
-    }>;
-
-    // 2 pure waiting months (Jun, Jul) + 1 bridge at FUTURE_START = 3 entries with waitingBalance
-    const waitingMonths = data.filter((d) => d.waitingBalance !== undefined);
-    expect(waitingMonths.length).toBe(3);
-    expect(waitingMonths[0].month).toBe(shortMonth(NOW));
-    expect(waitingMonths[0].waitingBalance).toBe(5000);
-  });
-
-  it("each Line uses its own dataKey — no per-Line data prop", () => {
-    store.setState({
-      settings: { startingBalance: 5000, startingMonth: FUTURE_START },
-      categories: [{ id: "cat1", name: "Rent", type: "expense", plannedAmount: 500 }],
-    });
-
-    renderDashboard();
-
-    for (const lp of capturedLineProps) {
-      expect(lp.hasOwnData).toBe(false);
-    }
-    expect(capturedLineProps.find((lp) => lp.dataKey === "waitingBalance")).toBeDefined();
-    expect(capturedLineProps.find((lp) => lp.dataKey === "solidBalance")).toBeDefined();
-    expect(capturedLineProps.find((lp) => lp.dataKey === "dashedBalance")).toBeDefined();
-  });
-
-  it("pure waiting months have only waitingBalance; bridge point connects both segments", () => {
-    store.setState({
-      settings: { startingBalance: 5000, startingMonth: FUTURE_START },
-      categories: [{ id: "cat1", name: "Rent", type: "expense", plannedAmount: 500 }],
-    });
-
-    renderDashboard();
-    const data = capturedLineChartData[0] as Array<{
-      month: string;
-      waitingBalance?: number;
-      solidBalance?: number;
-      dashedBalance?: number;
-    }>;
-
-    // Pure waiting months: only waitingBalance defined
-    const pureWaiting = data.filter(
-      (d) =>
-        d.waitingBalance !== undefined &&
-        d.solidBalance === undefined &&
-        d.dashedBalance === undefined,
-    );
-    expect(pureWaiting.length).toBeGreaterThan(0);
-
-    // Bridge point: waitingBalance AND a runway key at FUTURE_START
-    const bridge = data.filter(
-      (d) =>
-        d.waitingBalance !== undefined &&
-        (d.solidBalance !== undefined || d.dashedBalance !== undefined),
-    );
-    expect(bridge).toHaveLength(1);
-    expect(bridge[0].month).toBe(shortMonth(FUTURE_START));
-    expect(bridge[0].waitingBalance).toBe(5000);
-
-    // Non-bridge runway months: no waitingBalance
-    const runwayOnly = data.filter(
-      (d) =>
-        (d.solidBalance !== undefined || d.dashedBalance !== undefined) &&
-        d.waitingBalance === undefined,
-    );
-    for (const rm of runwayOnly) {
-      expect(rm.waitingBalance).toBeUndefined();
-    }
-  });
-
-  it("bridge point is at startingMonth — dashed segment starts at same x-tick as waiting ends", () => {
-    store.setState({
-      settings: { startingBalance: 5000, startingMonth: FUTURE_START },
-      categories: [{ id: "cat1", name: "Rent", type: "expense", plannedAmount: 500 }],
-    });
-
-    renderDashboard();
-    const data = capturedLineChartData[0] as Array<{
-      month: string;
-      waitingBalance?: number;
-      dashedBalance?: number;
-    }>;
-
-    const firstDashedIndex = data.findIndex((d) => d.dashedBalance !== undefined);
-    const lastWaitingIndex = data.reduce(
-      (last, d, i) => (d.waitingBalance !== undefined ? i : last),
-      -1,
-    );
-
-    // Bridge: dashed starts at same index as last waiting point (shared x-tick)
-    expect(firstDashedIndex).toBeGreaterThanOrEqual(lastWaitingIndex);
-    expect(data[firstDashedIndex].month).toBe(shortMonth(FUTURE_START));
-    expect(data[firstDashedIndex].waitingBalance).toBe(5000);
+    expect(document.querySelector('[data-testid="line-dashedBalance"]')).toBeNull();
   });
 });
 
-describe("Dashboard chart — no waiting period (startingMonth is current month)", () => {
-  it("has no waitingBalance entries when startingMonth is the current month", () => {
+describe("chart has balance line", () => {
+  it("renders a line-balance data-testid", () => {
+    renderDashboard();
+    expect(document.querySelector('[data-testid="line-balance"]')).not.toBeNull();
+  });
+});
+
+describe("chart has waitingBalance during waiting period", () => {
+  it("waitingBalance data is present in chart when startingMonth is future", () => {
+    store.setState({
+      expenses: [{ id: "e1", name: "Rent", type: "recurringExpense", amount: 500 }],
+      incomes: [],
+      settings: { startingBalance: 10000, startingMonth: FUTURE_START },
+    });
     renderDashboard();
     expect(capturedLineChartData.length).toBeGreaterThan(0);
     const data = capturedLineChartData[0] as Array<{ waitingBalance?: number }>;
-    expect(data.filter((d) => d.waitingBalance !== undefined)).toHaveLength(0);
-  });
-
-  it("renders the Balance projection section", () => {
-    renderDashboard();
-    expect(screen.getByText("Balance projection")).toBeInTheDocument();
-  });
-});
-
-// ─── Runway label copy and chart end at last positive month (#17) ─────────────
-
-describe("runway subtitle — lasts through", () => {
-  // Fixture: €2000, €1500/mo starting 2026-11
-  // Nov closes at €500 (positive), Dec closes at −€1000 (excluded)
-  beforeEach(() => {
-    store.setState({
-      settings: { startingBalance: 2000, startingMonth: "2026-11" },
-      categories: [{ id: "rent", name: "Rent", type: "expense", plannedAmount: 1500 }],
-    });
-  });
-
-  it('shows "lasts through" instead of "runs out"', () => {
-    renderDashboard();
-    expect(screen.getByText(/lasts through/i)).toBeInTheDocument();
-    expect(screen.queryByText(/runs out/i)).not.toBeInTheDocument();
-  });
-
-  it("subtitle targets the last positive month (Nov 2026), not the negative terminal month", () => {
-    renderDashboard();
-    expect(screen.getByText(/lasts through Nov 2026/i)).toBeInTheDocument();
-  });
-});
-
-describe("chart excludes negative-balance month (#17)", () => {
-  beforeEach(() => {
-    store.setState({
-      settings: { startingBalance: 2000, startingMonth: "2026-11" },
-      categories: [{ id: "rent", name: "Rent", type: "expense", plannedAmount: 1500 }],
-    });
-  });
-
-  it("does not include Dec 2026 (closingBalance < 0) in the chart data", () => {
-    renderDashboard();
-    expect(capturedLineChartData.length).toBeGreaterThan(0);
-    const data = capturedLineChartData[0] as Array<{ month: string }>;
-    expect(data.map((d) => d.month).some((m) => /Dec/i.test(m))).toBe(false);
-  });
-
-  it("includes Nov 2026 (last positive month) in the chart data", () => {
-    renderDashboard();
-    expect(capturedLineChartData.length).toBeGreaterThan(0);
-    const data = capturedLineChartData[0] as Array<{ month: string }>;
-    expect(data.map((d) => d.month).some((m) => /Nov/i.test(m))).toBe(true);
+    const withWaiting = data.filter((d) => d.waitingBalance !== undefined);
+    expect(withWaiting.length).toBeGreaterThan(0);
   });
 });

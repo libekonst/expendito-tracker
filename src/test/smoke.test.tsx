@@ -8,5 +8,5 @@ it("renders the setup wizard on first load", () => {
       <App />
     </MemoryRouter>,
   );
-  expect(screen.getByText("Welcome to Expendito")).toBeInTheDocument();
+  expect(screen.getByText("Set up your runway")).toBeInTheDocument();
 });

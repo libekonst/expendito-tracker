@@ -1,62 +1,62 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createStore, selectRunwayProjection } from "./index";
+import { exportData, importData } from "../domain/serializer";
 
 beforeEach(() => {
   localStorage.clear();
 });
 
-describe("category CRUD", () => {
-  it("adds a category", () => {
+describe("expense CRUD", () => {
+  it("adds a RecurringExpense", () => {
     const store = createStore();
-    store.getState().addCategory({ name: "Rent", type: "expense", plannedAmount: 900 });
-    expect(store.getState().categories).toHaveLength(1);
-    expect(store.getState().categories[0].name).toBe("Rent");
+    store.getState().addExpense({ name: "Rent", type: "recurringExpense", amount: 900 });
+    expect(store.getState().expenses).toHaveLength(1);
+    expect(store.getState().expenses[0].name).toBe("Rent");
+    expect(store.getState().expenses[0].type).toBe("recurringExpense");
+    expect(store.getState().expenses[0].id).toBeTruthy();
   });
 
-  it("updates a category", () => {
+  it("updates an expense", () => {
     const store = createStore();
-    store.getState().addCategory({ name: "Rent", type: "expense", plannedAmount: 0 });
-    const id = store.getState().categories[0].id;
-    store.getState().updateCategory(id, { name: "Housing" });
-    expect(store.getState().categories[0].name).toBe("Housing");
+    store.getState().addExpense({ name: "Rent", type: "recurringExpense", amount: 900 });
+    const id = store.getState().expenses[0].id;
+    store.getState().updateExpense(id, { amount: 1000 });
+    expect(store.getState().expenses[0].amount).toBe(1000);
   });
 
-  it("deletes a category and cascade-deletes its entries", () => {
+  it("deletes an expense", () => {
     const store = createStore();
-    store.getState().addCategory({ name: "Rent", type: "expense", plannedAmount: 0 });
-    const catId = store.getState().categories[0].id;
-    store.getState().addEntry({ categoryId: catId, amount: 900, date: "2026-05-01" });
-    store.getState().addEntry({ categoryId: catId, amount: 50, date: "2026-05-15" });
-
-    store.getState().deleteCategory(catId);
-
-    expect(store.getState().categories).toHaveLength(0);
-    expect(store.getState().entries).toHaveLength(0);
+    store.getState().addExpense({ name: "Rent", type: "recurringExpense", amount: 900 });
+    const id = store.getState().expenses[0].id;
+    store.getState().deleteExpense(id);
+    expect(store.getState().expenses).toHaveLength(0);
   });
 });
 
-describe("entry CRUD", () => {
-  it("adds an entry", () => {
+describe("income CRUD", () => {
+  it("adds a RecurringIncome", () => {
     const store = createStore();
-    store.getState().addEntry({ categoryId: "c1", amount: 100, date: "2026-05-01" });
-    expect(store.getState().entries).toHaveLength(1);
-    expect(store.getState().entries[0].amount).toBe(100);
+    store.getState().addIncome({ name: "Freelance", type: "recurringIncome", amount: 500 });
+    expect(store.getState().incomes).toHaveLength(1);
+    expect(store.getState().incomes[0].name).toBe("Freelance");
+    expect(store.getState().incomes[0].type).toBe("recurringIncome");
+    expect(store.getState().incomes[0].id).toBeTruthy();
   });
 
-  it("updates an entry", () => {
+  it("updates an income", () => {
     const store = createStore();
-    store.getState().addEntry({ categoryId: "c1", amount: 100, date: "2026-05-01" });
-    const id = store.getState().entries[0].id;
-    store.getState().updateEntry(id, { amount: 150 });
-    expect(store.getState().entries[0].amount).toBe(150);
+    store.getState().addIncome({ name: "Freelance", type: "recurringIncome", amount: 500 });
+    const id = store.getState().incomes[0].id;
+    store.getState().updateIncome(id, { amount: 600 });
+    expect(store.getState().incomes[0].amount).toBe(600);
   });
 
-  it("deletes an entry", () => {
+  it("deletes an income", () => {
     const store = createStore();
-    store.getState().addEntry({ categoryId: "c1", amount: 100, date: "2026-05-01" });
-    const id = store.getState().entries[0].id;
-    store.getState().deleteEntry(id);
-    expect(store.getState().entries).toHaveLength(0);
+    store.getState().addIncome({ name: "Freelance", type: "recurringIncome", amount: 500 });
+    const id = store.getState().incomes[0].id;
+    store.getState().deleteIncome(id);
+    expect(store.getState().incomes).toHaveLength(0);
   });
 });
 
@@ -69,20 +69,28 @@ describe("settings", () => {
 });
 
 describe("selectRunwayProjection", () => {
-  it("returns a projection that updates as entries are added", () => {
+  it("returns correct totalMonths given a recurring expense", () => {
     const store = createStore();
     store.getState().updateSettings({ startingBalance: 2000, startingMonth: "2025-01" });
-    store.getState().addCategory({ name: "Rent", type: "expense", plannedAmount: 1000 });
+    store.getState().addExpense({ name: "Rent", type: "recurringExpense", amount: 1000 });
+
+    const result = selectRunwayProjection(store.getState());
+    expect(result.totalMonths).toBe(2);
+  });
+
+  it("reflects reduced totalMonths when expense amount increases", () => {
+    const store = createStore();
+    store.getState().updateSettings({ startingBalance: 2000, startingMonth: "2025-01" });
+    store.getState().addExpense({ name: "Rent", type: "recurringExpense", amount: 1000 });
 
     const before = selectRunwayProjection(store.getState());
-    expect(before.runwayMonths).toBe(2);
+    expect(before.totalMonths).toBe(2);
 
-    // Add an overspend — runway should shrink
-    const catId = store.getState().categories[0].id;
-    store.getState().addEntry({ categoryId: catId, amount: 1500, date: "2025-01-10" });
+    const id = store.getState().expenses[0].id;
+    store.getState().updateExpense(id, { amount: 2000 });
 
     const after = selectRunwayProjection(store.getState());
-    expect(after.runwayMonths).toBe(1);
+    expect(after.totalMonths).toBe(1);
   });
 });
 
@@ -94,5 +102,72 @@ describe("storageUnavailable", () => {
     const store = createStore();
     expect(store.getState().storageUnavailable).toBe(true);
     vi.restoreAllMocks();
+  });
+});
+
+describe("completeWizard", () => {
+  it("completeWizard sets settings, mints IDs for expenses, and marks wizard completed", () => {
+    const store = createStore();
+    store.getState().completeWizard({
+      settings: { startingBalance: 5000, startingMonth: "2026-06" },
+      expenses: [{ name: "Rent", type: "recurringExpense", amount: 1200 }],
+    });
+    const state = store.getState();
+    expect(state.wizardCompleted).toBe(true);
+    expect(state.settings.startingBalance).toBe(5000);
+    expect(state.expenses).toHaveLength(1);
+    expect(state.expenses[0].id).toBeDefined();
+    expect(state.expenses[0].name).toBe("Rent");
+  });
+});
+
+describe("importAll", () => {
+  it("importAll overwrites expenses, incomes, and settings", () => {
+    const store = createStore();
+    store.getState().addExpense({ name: "Old", type: "recurringExpense", amount: 100 });
+    store.getState().importAll({
+      expenses: [{ id: "e1", name: "Rent", type: "recurringExpense", amount: 800 }],
+      incomes: [{ id: "i1", name: "Rental", type: "recurringIncome", amount: 300 }],
+      settings: { startingBalance: 10000, startingMonth: "2026-07" },
+    });
+    const state = store.getState();
+    expect(state.expenses).toHaveLength(1);
+    expect(state.expenses[0].name).toBe("Rent");
+    expect(state.incomes).toHaveLength(1);
+    expect(state.settings.startingBalance).toBe(10000);
+    expect(state.wizardCompleted).toBe(true);
+  });
+});
+
+describe("export/import round-trip", () => {
+  it("exports store expenses/incomes/settings and re-imports them unchanged", () => {
+    const store = createStore();
+    store.getState().addExpense({ name: "Rent", type: "recurringExpense", amount: 900 });
+    store.getState().addIncome({ name: "Salary", type: "recurringIncome", amount: 300 });
+    store.getState().updateSettings({ startingBalance: 5000, startingMonth: "2026-07" });
+
+    const { expenses, incomes, settings } = store.getState();
+    const json = exportData({ expenses, incomes, settings });
+    const imported = importData(json);
+
+    expect(imported.expenses).toHaveLength(1);
+    expect(imported.expenses[0].name).toBe("Rent");
+    expect(imported.incomes).toHaveLength(1);
+    expect(imported.incomes[0].name).toBe("Salary");
+    expect(imported.settings.startingBalance).toBe(5000);
+  });
+});
+
+describe("persistence", () => {
+  it("persists and reloads expenses and incomes across store instances", () => {
+    const store1 = createStore();
+    store1.getState().addExpense({ name: "Rent", type: "recurringExpense", amount: 900 });
+    store1.getState().addIncome({ name: "Salary", type: "recurringIncome", amount: 300 });
+
+    const store2 = createStore(); // reads from same localStorage
+    expect(store2.getState().expenses).toHaveLength(1);
+    expect(store2.getState().expenses[0].name).toBe("Rent");
+    expect(store2.getState().incomes).toHaveLength(1);
+    expect(store2.getState().incomes[0].name).toBe("Salary");
   });
 });

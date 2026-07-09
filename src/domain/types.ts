@@ -1,41 +1,56 @@
-export type Category = {
+export type RecurringExpense = {
   id: string;
   name: string;
-  type: "expense" | "income";
-  plannedAmount: number;
-  from?: string;  // active from this month (inclusive); absent = from the beginning
-  until?: string; // active until this month (inclusive); absent = forever
+  type: "recurringExpense";
+  amount: number;
 };
 
-export type Entry = {
+export type OneTimeExpense = {
   id: string;
-  categoryId: string;
-  amount: number; // always positive; sign derived from category type
-  date: string; // "YYYY-MM-DD"
-  note?: string;
+  name: string;
+  type: "oneTimeExpense";
+  amount: number;
 };
+
+export type Expense = RecurringExpense | OneTimeExpense;
+
+export type RecurringIncome = {
+  id: string;
+  name: string;
+  type: "recurringIncome";
+  amount: number;
+};
+
+export type OneTimeIncome = {
+  id: string;
+  name: string;
+  type: "oneTimeIncome";
+  amount: number;
+};
+
+export type Income = RecurringIncome | OneTimeIncome;
 
 export type Settings = {
-  startingBalance: number; // EUR
-  startingMonth: string; // "YYYY-MM"
-};
-
-export type CategorySummary = {
-  categoryId: string;
-  planned: number;
-  actual: number;
-  variance: number; // actual - planned
+  startingBalance: number; // EUR — total savings when the user quits
+  startingMonth: string; // "YYYY-MM" — first month the runway begins burning savings
 };
 
 export type MonthSummary = {
   month: string; // "YYYY-MM"
   openingBalance: number;
   closingBalance: number;
-  categories: CategorySummary[];
-  isProjected: boolean;
 };
 
 export type RunwayResult = {
-  months: MonthSummary[];
-  runwayMonths: number;
+  effectiveBalance: number;
+  totalMonths: number; // full runway length from Starting Month
+  remainingMonths: number; // months from today to end; equals totalMonths during Waiting Period
+  startMonth: string; // Starting Month (YYYY-MM)
+  endMonth: string; // last fully-covered month (YYYY-MM)
+  months: MonthSummary[]; // one entry per fully-covered simulated month
+  overhang?: {
+    remainingBalance: number; // balance left after last full month
+    shortfall: number; // amount needed to complete the extra month
+  };
+  capExceeded?: boolean; // true if runway hit the simulation cap without depleting
 };
