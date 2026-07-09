@@ -287,7 +287,7 @@ export default function Plan() {
       {/* Summary */}
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-5 space-y-3">
         <div className="text-sm font-medium text-gray-700">
-          Total monthly expenses:{" "}
+          Gross monthly expenses:{" "}
           <span className="font-semibold text-gray-900">
             €{totalMonthlyExpenses.toLocaleString("de-DE", { minimumFractionDigits: 2 })} /month
           </span>

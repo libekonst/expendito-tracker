@@ -1,6 +1,6 @@
 import type { Expense, Income, Settings } from "./types";
 
-const VERSION = 1;
+const VERSION = 2;
 
 type Payload = { expenses: Expense[]; incomes: Income[]; settings: Settings };
 type Export = Payload & { version: number };

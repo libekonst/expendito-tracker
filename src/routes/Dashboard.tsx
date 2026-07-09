@@ -10,23 +10,13 @@ import {
 } from "recharts";
 import { useStore } from "../store";
 import { calculateRunway, computeMonthlyNetCost } from "../domain/runwayEngine";
+import { addMonth, currentMonth } from "../domain/dateUtils";
 
 type ChartPoint = {
   month: string;
   waitingBalance?: number; // only set for waiting-period months
   balance?: number;        // only set for runway months (startingMonth to endMonth)
 };
-
-function currentMonth(): string {
-  return new Date().toISOString().slice(0, 7);
-}
-
-function addMonth(yyyymm: string): string {
-  const [y, m] = yyyymm.split("-").map(Number);
-  return m === 12
-    ? `${y + 1}-01`
-    : `${y}-${String(m + 1).padStart(2, "0")}`;
-}
 
 function daysUntil(yyyymm: string): number {
   const today = new Date();
@@ -78,9 +68,13 @@ export default function Dashboard() {
     [settings, expenses, incomes],
   );
 
-  const monthlyExpenses = useMemo(
+  const grossMonthlyExpenses = useMemo(
     () => computeMonthlyNetCost(expenses, []),
     [expenses],
+  );
+  const netMonthlyBurn = useMemo(
+    () => computeMonthlyNetCost(expenses, incomes),
+    [expenses, incomes],
   );
 
   const cm = currentMonth();
@@ -104,13 +98,13 @@ export default function Dashboard() {
       const balance = Math.round(m.closingBalance);
       const bridgePoint =
         isFutureStart && m.month === settings.startingMonth
-          ? { waitingBalance: settings.startingBalance }
+          ? { waitingBalance: Math.round(runway.effectiveBalance) }
           : {};
       points.push({ month: shortMonth(m.month), ...bridgePoint, balance });
     }
 
     return points;
-  }, [cm, isFutureStart, settings.startingMonth, settings.startingBalance, runway.months]);
+  }, [cm, isFutureStart, settings.startingMonth, runway.effectiveBalance, runway.months]);
 
   // Last data point month label for the overhang dot
   const lastChartPoint = allChartData.length > 0 ? allChartData[allChartData.length - 1] : null;
@@ -129,10 +123,10 @@ export default function Dashboard() {
           Runway
         </p>
         <p className="mt-2 text-6xl font-bold tabular-nums text-gray-900">
-          {runway.remainingMonths}
+          {runway.capExceeded ? "120+" : runway.remainingMonths}
         </p>
         <p className="mt-1 text-base text-gray-500">
-          {runway.totalMonths} months total · lasts through{" "}
+          {runway.capExceeded ? "120+" : runway.totalMonths} months total · lasts through{" "}
           {runway.endMonth ? formatEndMonth(runway.endMonth) : "—"}
         </p>
         {isFutureStart && daysUntilBurning !== null && (
@@ -151,9 +145,14 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Total monthly expenses */}
-      <div className="text-sm text-gray-500">
-        Total monthly expenses: €{monthlyExpenses.toLocaleString("de-DE", { minimumFractionDigits: 0 })}/month
+      {/* Monthly expenses */}
+      <div className="space-y-0.5 text-sm text-gray-500">
+        <div>
+          Gross monthly expenses: €{grossMonthlyExpenses.toLocaleString("de-DE", { minimumFractionDigits: 0 })}/month
+        </div>
+        <div>
+          Monthly net burn: €{netMonthlyBurn.toLocaleString("de-DE", { minimumFractionDigits: 0 })}/month
+        </div>
       </div>
 
       {/* Balance chart */}

@@ -5,17 +5,9 @@ import type {
   MonthSummary,
   RunwayResult,
 } from "./types";
+import { addMonth, currentMonth } from "./dateUtils";
 
 const MAX_MONTHS = 120;
-
-function addMonth(yyyymm: string): string {
-  const [y, m] = yyyymm.split("-").map(Number);
-  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
-}
-
-function currentMonth(): string {
-  return new Date().toISOString().slice(0, 7);
-}
 
 /** Effective Balance = Starting Balance + one-time incomes − one-time expenses. */
 export function computeEffectiveBalance(
@@ -29,7 +21,11 @@ export function computeEffectiveBalance(
   const oneTimeExpense = expenses
     .filter((e) => e.type === "oneTimeExpense")
     .reduce((sum, e) => sum + e.amount, 0);
-  return startingBalance + oneTimeIncome - oneTimeExpense;
+  return roundCents(startingBalance + oneTimeIncome - oneTimeExpense);
+}
+
+function roundCents(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 /** Monthly net cost = sum of recurring expenses − sum of recurring incomes. */
@@ -79,13 +75,15 @@ export function calculateRunway(
   let openingBalance = effectiveBalance;
   let overhang: RunwayResult["overhang"];
 
+  let capExceeded = false;
+
   for (let i = 0; i < MAX_MONTHS; i++) {
-    const closingBalance = openingBalance - monthlyNetCost;
+    const closingBalance = roundCents(openingBalance - monthlyNetCost);
 
     if (closingBalance < 0) {
       overhang = {
         remainingBalance: openingBalance,
-        shortfall: monthlyNetCost - openingBalance,
+        shortfall: roundCents(monthlyNetCost - openingBalance),
       };
       break;
     }
@@ -96,6 +94,8 @@ export function calculateRunway(
 
     openingBalance = closingBalance;
     month = addMonth(month);
+
+    if (i === MAX_MONTHS - 1) capExceeded = true;
   }
 
   const totalMonths = months.length;
@@ -115,5 +115,6 @@ export function calculateRunway(
     endMonth,
     months,
     ...(overhang ? { overhang } : {}),
+    ...(capExceeded ? { capExceeded } : {}),
   };
 }

@@ -171,6 +171,26 @@ describe("calculateRunway", () => {
     expect(result.months).toHaveLength(0);
   });
 
+  it("10. floating-point drift: decimal amounts don't cause an early or spurious overhang", () => {
+    const result = calculateRunway(
+      settings(10001, "2026-01"),
+      [recurringExpense("rent", 1000.1)],
+      [],
+    );
+    expect(result.totalMonths).toBe(10);
+    expect(result.overhang).toBeUndefined();
+  });
+
+  it("11. capExceeded: net cost <= 0 hits the 120-month cap without depleting", () => {
+    const result = calculateRunway(
+      settings(10000, "2026-01"),
+      [recurringExpense("rent", 500)],
+      [recurringIncome("salary", 499)],
+    );
+    expect(result.months).toHaveLength(120);
+    expect(result.capExceeded).toBe(true);
+  });
+
   it("threads opening/closing balances forward across months", () => {
     const result = calculateRunway(
       settings(3000, "2026-01"),

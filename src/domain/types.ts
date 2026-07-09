@@ -52,4 +52,5 @@ export type RunwayResult = {
     remainingBalance: number; // balance left after last full month
     shortfall: number; // amount needed to complete the extra month
   };
+  capExceeded?: boolean; // true if runway hit the simulation cap without depleting
 };

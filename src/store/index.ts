@@ -2,6 +2,7 @@ import { createStore as createZustandStore } from "zustand";
 import { nanoid } from "nanoid";
 import type { Expense, Income, Settings, RunwayResult } from "../domain/types";
 import { calculateRunway } from "../domain/runwayEngine";
+import { currentMonth } from "../domain/dateUtils";
 
 type State = {
   expenses: Expense[];
@@ -13,10 +14,10 @@ type State = {
 
 type Actions = {
   addExpense: (expense: Omit<Expense, "id">) => void;
-  updateExpense: (id: string, patch: Partial<Omit<Expense, "id">>) => void;
+  updateExpense: (id: string, patch: Partial<Pick<Expense, "name" | "amount">>) => void;
   deleteExpense: (id: string) => void;
   addIncome: (income: Omit<Income, "id">) => void;
-  updateIncome: (id: string, patch: Partial<Omit<Income, "id">>) => void;
+  updateIncome: (id: string, patch: Partial<Pick<Income, "name" | "amount">>) => void;
   deleteIncome: (id: string) => void;
   updateSettings: (patch: Partial<Settings>) => void;
   completeWizard: (payload: { settings: Settings; expenses: Omit<Expense, "id">[] }) => void;
@@ -26,10 +27,6 @@ type Actions = {
 export type Store = State & Actions;
 
 const STORAGE_KEY = "expendito-v2";
-
-function currentMonth(): string {
-  return new Date().toISOString().slice(0, 7);
-}
 
 const defaultSettings: Settings = {
   startingBalance: 0,

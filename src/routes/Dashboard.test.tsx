@@ -158,7 +158,7 @@ describe("total monthly expenses shown", () => {
     });
     renderDashboard();
     // Should show €500/month (only recurring, not the one-time €1000)
-    expect(screen.getByText(/Total monthly expenses:.*€500\/month/)).toBeInTheDocument();
+    expect(screen.getByText(/Gross monthly expenses:.*€500\/month/)).toBeInTheDocument();
   });
 });
 

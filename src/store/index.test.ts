@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createStore, selectRunwayProjection } from "./index";
+import { exportData, importData } from "../domain/serializer";
 
 beforeEach(() => {
   localStorage.clear();
@@ -135,6 +136,25 @@ describe("importAll", () => {
     expect(state.incomes).toHaveLength(1);
     expect(state.settings.startingBalance).toBe(10000);
     expect(state.wizardCompleted).toBe(true);
+  });
+});
+
+describe("export/import round-trip", () => {
+  it("exports store expenses/incomes/settings and re-imports them unchanged", () => {
+    const store = createStore();
+    store.getState().addExpense({ name: "Rent", type: "recurringExpense", amount: 900 });
+    store.getState().addIncome({ name: "Salary", type: "recurringIncome", amount: 300 });
+    store.getState().updateSettings({ startingBalance: 5000, startingMonth: "2026-07" });
+
+    const { expenses, incomes, settings } = store.getState();
+    const json = exportData({ expenses, incomes, settings });
+    const imported = importData(json);
+
+    expect(imported.expenses).toHaveLength(1);
+    expect(imported.expenses[0].name).toBe("Rent");
+    expect(imported.incomes).toHaveLength(1);
+    expect(imported.incomes[0].name).toBe("Salary");
+    expect(imported.settings.startingBalance).toBe(5000);
   });
 });
 

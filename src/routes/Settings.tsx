@@ -8,8 +8,8 @@ function todayString(): string {
 
 export default function Settings() {
   const settings = useStore((s) => s.settings);
-  const categories = useStore((s) => s.categories);
-  const entries = useStore((s) => s.entries);
+  const expenses = useStore((s) => s.expenses);
+  const incomes = useStore((s) => s.incomes);
   const storageUnavailable = useStore((s) => s.storageUnavailable);
   const updateSettings = useStore((s) => s.updateSettings);
   const importAll = useStore((s) => s.importAll);
@@ -18,7 +18,7 @@ export default function Settings() {
   const [importError, setImportError] = useState("");
 
   function handleExport() {
-    const json = exportData({ categories, entries, settings });
+    const json = exportData({ expenses, incomes, settings });
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
