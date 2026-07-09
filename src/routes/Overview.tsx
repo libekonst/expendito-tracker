@@ -48,13 +48,15 @@ function eur(n: number, digits = 0): string {
 // ── Shared editable-list sub-components ─────────────────────────────────────
 
 function AddForm({
+  initialName = "",
   onSave,
   onCancel,
 }: {
+  initialName?: string;
   onSave: (name: string, amount: number) => void;
   onCancel: () => void;
 }) {
-  const [state, setState] = useState<ItemEditState>({ name: "", amount: "" });
+  const [state, setState] = useState<ItemEditState>({ name: initialName, amount: "" });
 
   function handleSave() {
     if (!state.name.trim()) return;
@@ -66,13 +68,14 @@ function AddForm({
     <div className="mt-3 space-y-3 rounded-xl border border-hairline bg-white p-4">
       <div className="grid grid-cols-2 gap-3">
         <input
-          autoFocus
+          autoFocus={!initialName}
           placeholder="Name"
           value={state.name}
           onChange={(e) => setState((s) => ({ ...s, name: e.target.value }))}
           className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent"
         />
         <input
+          autoFocus={!!initialName}
           type="number"
           min="0"
           step="0.01"
@@ -100,10 +103,17 @@ function AddForm({
   );
 }
 
+const addButtonClass = (optional?: boolean) =>
+  optional
+    ? "rounded-lg border border-hairline px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:border-ink hover:text-ink"
+    : "rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-amber-700";
+
 function RecurringSection<T extends Expense | Income>({
   title,
   unit,
   items,
+  optional,
+  suggestions,
   onAdd,
   onUpdate,
   onDelete,
@@ -111,11 +121,14 @@ function RecurringSection<T extends Expense | Income>({
   title: string;
   unit: string;
   items: T[];
+  optional?: boolean;
+  suggestions?: string[];
   onAdd: (name: string, amount: number) => void;
   onUpdate: (id: string, name: string, amount: number) => void;
   onDelete: (id: string) => void;
 }) {
   const [adding, setAdding] = useState(false);
+  const [prefillName, setPrefillName] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editState, setEditState] = useState<ItemEditState>({ name: "", amount: "" });
 
@@ -143,8 +156,11 @@ function RecurringSection<T extends Expense | Income>({
         <h2 className="font-display text-base font-semibold text-ink">{title}</h2>
         {!adding && (
           <button
-            onClick={() => setAdding(true)}
-            className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-amber-700"
+            onClick={() => {
+              setPrefillName("");
+              setAdding(true);
+            }}
+            className={addButtonClass(optional)}
           >
             + Add
           </button>
@@ -153,6 +169,7 @@ function RecurringSection<T extends Expense | Income>({
 
       {adding && (
         <AddForm
+          initialName={prefillName}
           onSave={(name, amount) => {
             onAdd(name, amount);
             setAdding(false);
@@ -162,7 +179,25 @@ function RecurringSection<T extends Expense | Income>({
       )}
 
       {items.length === 0 && !adding && (
-        <p className="text-sm text-muted">No items yet.</p>
+        <>
+          <p className="text-sm text-muted">No items yet.</p>
+          {suggestions && suggestions.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {suggestions.map((name) => (
+                <button
+                  key={name}
+                  onClick={() => {
+                    setPrefillName(name);
+                    setAdding(true);
+                  }}
+                  className="rounded-full border border-hairline px-3 py-1 text-xs font-medium text-muted transition-colors hover:border-accent hover:text-accent"
+                >
+                  + {name}
+                </button>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       <div className="overflow-hidden rounded-xl border border-hairline bg-white">
@@ -287,11 +322,13 @@ function StartingPointCard({
 function OneTimeSection<T extends Expense | Income>({
   title,
   items,
+  optional,
   onAdd,
   onDelete,
 }: {
   title: string;
   items: T[];
+  optional?: boolean;
   onAdd: (name: string, amount: number) => void;
   onDelete: (id: string) => void;
 }) {
@@ -304,10 +341,7 @@ function OneTimeSection<T extends Expense | Income>({
       <div className="flex items-center justify-between">
         <h2 className="font-display text-base font-semibold text-ink">{title}</h2>
         {!adding && (
-          <button
-            onClick={() => setAdding(true)}
-            className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-amber-700"
-          >
+          <button onClick={() => setAdding(true)} className={addButtonClass(optional)}>
             + Add
           </button>
         )}
@@ -615,12 +649,14 @@ export default function Overview() {
             title="Monthly Expenses"
             unit="/mo"
             items={recurringExpenses}
+            suggestions={["Rent", "Food", "Transport", "Utilities", "Entertainment", "Other"]}
             onAdd={(name, amount) => addExpense({ name, amount, type: "recurringExpense" })}
             onUpdate={(id, name, amount) => updateExpense(id, { name, amount })}
             onDelete={(id) => deleteExpense(id)}
           />
 
           <RecurringSection
+            optional
             title="Monthly Income"
             unit="/mo"
             items={recurringIncomes}
@@ -630,6 +666,7 @@ export default function Overview() {
           />
 
           <OneTimeSection
+            optional
             title="One-time Expenses"
             items={oneTimeExpenses}
             onAdd={(name, amount) => addExpense({ name, amount, type: "oneTimeExpense" })}
@@ -637,6 +674,7 @@ export default function Overview() {
           />
 
           <OneTimeSection
+            optional
             title="One-time Income"
             items={oneTimeIncomes}
             onAdd={(name, amount) => addIncome({ name, amount, type: "oneTimeIncome" })}
