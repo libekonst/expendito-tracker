@@ -49,8 +49,8 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-8">
-      <h1 className="text-2xl font-semibold">Settings</h1>
+    <div className="mx-auto max-w-4xl space-y-8 px-4 py-8 md:py-12">
+      <h1 className="font-display text-2xl font-semibold text-ink">Settings</h1>
 
       {storageUnavailable && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">

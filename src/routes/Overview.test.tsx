@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import Dashboard from "./Dashboard";
+import Overview from "./Overview";
 import { store } from "../store";
 
 // Pin time so currentMonth() and daysUntil() are deterministic
@@ -43,7 +43,7 @@ vi.mock("recharts", async () => {
 function renderDashboard() {
   return render(
     <MemoryRouter>
-      <Dashboard />
+      <Overview />
     </MemoryRouter>,
   );
 }
@@ -102,7 +102,7 @@ describe("waiting period countdown", () => {
     });
     renderDashboard();
     expect(screen.getByText(/days until runway starts/)).toBeInTheDocument();
-    expect(screen.getByText(/starts August 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/August 2026/)).toBeInTheDocument();
   });
 });
 
@@ -157,8 +157,9 @@ describe("total monthly expenses shown", () => {
       settings: { startingBalance: 10000, startingMonth: NOW },
     });
     renderDashboard();
-    // Should show €500/month (only recurring, not the one-time €1000)
-    expect(screen.getByText(/Gross monthly expenses:.*€500\/month/)).toBeInTheDocument();
+    // Should show €500/mo (only recurring, not the one-time €1000)
+    expect(screen.getByText("Gross monthly expenses")).toBeInTheDocument();
+    expect(screen.getAllByText("€500/mo").length).toBeGreaterThan(0);
   });
 });
 
