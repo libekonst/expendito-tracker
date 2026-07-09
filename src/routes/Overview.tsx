@@ -454,12 +454,8 @@ export default function Overview() {
               {emptyOnboarding ? (
                 <>
                   <div className="hero-glass mt-4 rounded-2xl px-6 py-9 text-center">
-                    <div className="glow-dot mx-auto" />
-                    <p className="font-display mt-4 text-xl font-semibold text-ink">
+                    <p className="font-display text-xl font-semibold text-ink">
                       Add your numbers to see your runway
-                    </p>
-                    <p className="mt-2 text-sm text-muted">
-                      Starting balance and a monthly expense are all it takes.
                     </p>
                   </div>
                   <div className="runway-strip runway-strip--unlit mt-4 w-full" />
