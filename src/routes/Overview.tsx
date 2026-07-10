@@ -159,7 +159,7 @@ function MonthlyExpensesCard({
     <section className="space-y-3">
       <h2 className="font-display text-base font-semibold text-ink">Monthly Expenses</h2>
 
-      {!adding && availableSuggestions.length > 0 && (
+      {availableSuggestions.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {availableSuggestions.map((name) => (
             <button
