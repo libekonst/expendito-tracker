@@ -742,14 +742,20 @@ export default function Overview() {
               </div>
             )}
 
-            <div className="space-y-1 border-t border-hairline pt-5 font-mono text-xs text-muted">
-              <div className="flex justify-between">
-                <span>Gross monthly expenses</span>
-                <span className="tabular-nums text-ink">{eur(grossMonthlyExpenses)}/mo</span>
+            <div className="space-y-3 border-t border-hairline pt-5">
+              <div>
+                <div className="flex justify-between font-mono text-xs text-muted">
+                  <span>Gross monthly expenses</span>
+                  <span className="tabular-nums text-ink">{eur(grossMonthlyExpenses)}/mo</span>
+                </div>
+                <p className="mt-0.5 text-xs text-muted">Everything you spend, each month.</p>
               </div>
-              <div className="flex justify-between">
-                <span>Net monthly burn</span>
-                <span className="tabular-nums text-ink">{eur(netMonthlyBurn)}/mo</span>
+              <div>
+                <div className="flex justify-between font-mono text-xs text-muted">
+                  <span>Net monthly burn</span>
+                  <span className="tabular-nums text-ink">{eur(netMonthlyBurn)}/mo</span>
+                </div>
+                <p className="mt-0.5 text-xs text-muted">What actually drains your savings each month.</p>
               </div>
             </div>
 
