@@ -173,7 +173,7 @@ function MonthlyExpensesCard({
         </div>
       )}
 
-      <div className="divide-y divide-hairline overflow-hidden rounded-xl border border-hairline bg-white">
+      <div className="overflow-hidden rounded-xl border border-hairline bg-white">
         {items.map((item) =>
           editingId === item.id ? (
             <form
@@ -219,10 +219,11 @@ function MonthlyExpensesCard({
           ) : (
             <div
               key={item.id}
-              className="group flex items-center justify-between px-4 py-3 transition-colors hover:bg-paper/60"
+              className="group flex items-center gap-2 px-4 py-3 transition-colors hover:bg-paper/60"
             >
-              <span className="text-sm font-medium text-ink">{item.name}</span>
-              <div className="flex items-center gap-4">
+              <span className="shrink-0 text-sm font-medium text-ink">{item.name}</span>
+              <span className="ledger-leader" />
+              <div className="flex shrink-0 items-center gap-4">
                 <span className="font-mono text-sm tabular-nums text-muted">{eur(item.amount, 2)}/mo</span>
                 <button
                   onClick={() => startEdit(item)}
@@ -254,13 +255,13 @@ function MonthlyExpensesCard({
         ) : (
           <button
             onClick={() => openAdd()}
-            className="w-full px-4 py-3 text-left text-sm text-muted transition-colors hover:text-accent"
+            className="w-full py-3 pr-4 pl-8 text-left text-xs text-muted transition-colors hover:text-accent"
           >
             + Add expense
           </button>
         )}
 
-        <div className="flex items-center justify-between bg-paper/60 px-4 py-3">
+        <div className="flex items-center justify-between border-t border-hairline bg-paper/60 px-4 py-3">
           <span className="text-sm font-medium text-ink">Total</span>
           <span className="font-mono text-sm font-medium tabular-nums text-ink">{eur(total, 2)}/mo</span>
         </div>
@@ -350,7 +351,7 @@ function SimpleItemList<T extends Expense | Income>({
   const total = items.reduce((sum, item) => sum + item.amount, 0);
 
   return (
-    <div className="divide-y divide-hairline overflow-hidden rounded-xl border border-hairline bg-white">
+    <div className="overflow-hidden rounded-xl border border-hairline bg-white">
       {items.map((item) =>
         editable && editingId === item.id ? (
           <form
@@ -396,10 +397,11 @@ function SimpleItemList<T extends Expense | Income>({
         ) : (
           <div
             key={item.id}
-            className="group flex items-center justify-between px-4 py-3 transition-colors hover:bg-paper/60"
+            className="group flex items-center gap-2 px-4 py-3 transition-colors hover:bg-paper/60"
           >
-            <span className="text-sm font-medium text-ink">{item.name}</span>
-            <div className="flex items-center gap-4">
+            <span className="shrink-0 text-sm font-medium text-ink">{item.name}</span>
+            <span className="ledger-leader" />
+            <div className="flex shrink-0 items-center gap-4">
               <span className="font-mono text-sm tabular-nums text-muted">
                 {eur(item.amount, 2)}
                 {unit}
@@ -435,14 +437,14 @@ function SimpleItemList<T extends Expense | Income>({
       ) : (
         <button
           onClick={() => setAdding(true)}
-          className="w-full px-4 py-3 text-left text-sm text-muted transition-colors hover:text-accent"
+          className="w-full py-3 pr-4 pl-8 text-left text-xs text-muted transition-colors hover:text-accent"
         >
           + {addLabel}
         </button>
       )}
 
       {items.length > 0 && (
-        <div className="flex items-center justify-between bg-paper/60 px-4 py-3">
+        <div className="flex items-center justify-between border-t border-hairline bg-paper/60 px-4 py-3">
           <span className="text-sm font-medium text-ink">Total</span>
           <span className="font-mono text-sm font-medium tabular-nums text-ink">
             {eur(total, 2)}

@@ -76,3 +76,12 @@
   border: 1px solid rgba(255, 255, 255, 0.6);
   box-shadow: 0 4px 24px rgba(18, 19, 26, 0.06);
 }
+
+/* Ledger dot-leader: connects an item's name to its price, the way a
+   receipt or a table of contents ties a label to its figure. */
+.ledger-leader {
+  flex: 1 1 auto;
+  min-width: 12px;
+  align-self: center;
+  border-bottom: 1px dotted #c2c4cc;
+}
