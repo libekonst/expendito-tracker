@@ -173,108 +173,98 @@ function MonthlyExpensesCard({
         </div>
       )}
 
-      {items.length === 0 && !adding && (
-        <p className="text-sm text-muted">No items yet.</p>
-      )}
-
-      {(items.length > 0 || adding) && (
-        <div className="divide-y divide-hairline overflow-hidden rounded-xl border border-hairline bg-white">
-          {items.map((item) =>
-            editingId === item.id ? (
-              <form
-                key={item.id}
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  saveEdit(item);
-                }}
-                className="space-y-3 p-4"
-              >
-                <div className="grid grid-cols-2 gap-3">
-                  <input
-                    autoFocus
-                    value={editState.name}
-                    onChange={(e) => setEditState((s) => ({ ...s, name: e.target.value }))}
-                    className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-ink outline-none focus:border-accent"
-                  />
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={editState.amount}
-                    onChange={(e) => setEditState((s) => ({ ...s, amount: e.target.value }))}
-                    className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-ink outline-none focus:border-accent"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="submit"
-                    className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
-                  >
-                    Save
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEditingId(null)}
-                    className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-muted hover:text-ink"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            ) : (
-              <div
-                key={item.id}
-                className="group flex items-center justify-between px-4 py-3 transition-colors hover:bg-paper/60"
-              >
-                <span className="text-sm font-medium text-ink">{item.name}</span>
-                <div className="flex items-center gap-4">
-                  <span className="font-mono text-sm tabular-nums text-muted">{eur(item.amount, 2)}/mo</span>
-                  <button
-                    onClick={() => startEdit(item)}
-                    className="text-sm text-accent opacity-0 transition-opacity group-hover:opacity-100 hover:text-amber-700"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleDelete(item)}
-                    className="text-sm text-negative opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-700"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ),
-          )}
-
-          {adding ? (
-            <AddForm
-              inline
-              initialName={prefillName}
-              onSave={(name, amount) => {
-                onAdd(name, amount);
-                setAdding(false);
+      <div className="divide-y divide-hairline overflow-hidden rounded-xl border border-hairline bg-white">
+        {items.map((item) =>
+          editingId === item.id ? (
+            <form
+              key={item.id}
+              onSubmit={(e) => {
+                e.preventDefault();
+                saveEdit(item);
               }}
-              onCancel={() => setAdding(false)}
-            />
+              className="space-y-3 p-4"
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  autoFocus
+                  value={editState.name}
+                  onChange={(e) => setEditState((s) => ({ ...s, name: e.target.value }))}
+                  className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editState.amount}
+                  onChange={(e) => setEditState((s) => ({ ...s, amount: e.target.value }))}
+                  className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingId(null)}
+                  className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-muted hover:text-ink"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           ) : (
-            items.length > 0 && (
-              <button
-                onClick={() => openAdd()}
-                className="w-full px-4 py-3 text-left text-sm text-muted transition-colors hover:text-accent"
-              >
-                + Add expense
-              </button>
-            )
-          )}
-
-          {items.length > 0 && (
-            <div className="flex items-center justify-between bg-paper/60 px-4 py-3">
-              <span className="text-sm font-medium text-ink">Total</span>
-              <span className="font-mono text-sm font-medium tabular-nums text-ink">{eur(total, 2)}/mo</span>
+            <div
+              key={item.id}
+              className="group flex items-center justify-between px-4 py-3 transition-colors hover:bg-paper/60"
+            >
+              <span className="text-sm font-medium text-ink">{item.name}</span>
+              <div className="flex items-center gap-4">
+                <span className="font-mono text-sm tabular-nums text-muted">{eur(item.amount, 2)}/mo</span>
+                <button
+                  onClick={() => startEdit(item)}
+                  className="text-sm text-accent opacity-0 transition-opacity group-hover:opacity-100 hover:text-amber-700"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => handleDelete(item)}
+                  className="text-sm text-negative opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-700"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
-          )}
+          ),
+        )}
+
+        {adding ? (
+          <AddForm
+            inline
+            initialName={prefillName}
+            onSave={(name, amount) => {
+              onAdd(name, amount);
+              setAdding(false);
+            }}
+            onCancel={() => setAdding(false)}
+          />
+        ) : (
+          <button
+            onClick={() => openAdd()}
+            className="w-full px-4 py-3 text-left text-sm text-muted transition-colors hover:text-accent"
+          >
+            + Add expense
+          </button>
+        )}
+
+        <div className="flex items-center justify-between bg-paper/60 px-4 py-3">
+          <span className="text-sm font-medium text-ink">Total</span>
+          <span className="font-mono text-sm font-medium tabular-nums text-ink">{eur(total, 2)}/mo</span>
         </div>
-      )}
+      </div>
     </section>
   );
 }
@@ -499,13 +489,15 @@ function CashFlowsCard({
 
   return (
     <section className="space-y-3">
-      <div className="inline-flex flex-wrap gap-1 rounded-lg border border-hairline bg-white p-1">
+      <h2 className="font-display text-base font-semibold text-ink">Other Income &amp; Expenses</h2>
+
+      <div className="flex flex-wrap gap-6 border-b border-hairline">
         {tabs.map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-              tab === t.key ? "bg-paper text-ink" : "text-muted hover:text-ink"
+            className={`-mb-px border-b-2 pb-2 text-sm font-medium transition-colors ${
+              tab === t.key ? "border-accent text-ink" : "border-transparent text-muted hover:text-ink"
             }`}
           >
             {t.label}
