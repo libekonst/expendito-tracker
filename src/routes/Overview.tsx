@@ -49,10 +49,12 @@ function eur(n: number, digits = 0): string {
 
 function AddForm({
   initialName = "",
+  inline,
   onSave,
   onCancel,
 }: {
   initialName?: string;
+  inline?: boolean;
   onSave: (name: string, amount: number) => void;
   onCancel: () => void;
 }) {
@@ -65,7 +67,13 @@ function AddForm({
   }
 
   return (
-    <div className="mt-3 space-y-3 rounded-xl border border-hairline bg-white p-4">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        handleSave();
+      }}
+      className={inline ? "space-y-3 p-4" : "mt-3 space-y-3 rounded-xl border border-hairline bg-white p-4"}
+    >
       <div className="grid grid-cols-2 gap-3">
         <input
           autoFocus={!initialName}
@@ -87,42 +95,32 @@ function AddForm({
       </div>
       <div className="flex gap-2">
         <button
-          onClick={handleSave}
+          type="submit"
           className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-amber-700"
         >
           Save
         </button>
         <button
+          type="button"
           onClick={onCancel}
           className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-muted transition-colors hover:text-ink"
         >
           Cancel
         </button>
       </div>
-    </div>
+    </form>
   );
 }
 
-const addButtonClass = (optional?: boolean) =>
-  optional
-    ? "rounded-lg border border-hairline px-3 py-1.5 text-sm font-medium text-muted transition-colors hover:border-ink hover:text-ink"
-    : "rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-amber-700";
-
-function RecurringSection<T extends Expense | Income>({
-  title,
-  unit,
+function MonthlyExpensesCard({
   items,
-  optional,
   suggestions,
   onAdd,
   onUpdate,
   onDelete,
 }: {
-  title: string;
-  unit: string;
-  items: T[];
-  optional?: boolean;
-  suggestions?: string[];
+  items: Expense[];
+  suggestions: string[];
   onAdd: (name: string, amount: number) => void;
   onUpdate: (id: string, name: string, amount: number) => void;
   onDelete: (id: string) => void;
@@ -132,150 +130,151 @@ function RecurringSection<T extends Expense | Income>({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editState, setEditState] = useState<ItemEditState>({ name: "", amount: "" });
 
-  function startEdit(item: T) {
+  function openAdd(name = "") {
+    setPrefillName(name);
+    setAdding(true);
+  }
+
+  function startEdit(item: Expense) {
     setEditingId(item.id);
     setEditState({ name: item.name, amount: String(item.amount) });
   }
 
-  function saveEdit(item: T) {
+  function saveEdit(item: Expense) {
     onUpdate(item.id, editState.name.trim() || item.name, parseFloat(editState.amount) || 0);
     setEditingId(null);
   }
 
-  function handleDelete(item: T) {
+  function handleDelete(item: Expense) {
     if (window.confirm(`Delete "${item.name}"? This affects the runway simulation.`)) {
       onDelete(item.id);
     }
   }
 
   const total = items.reduce((sum, item) => sum + item.amount, 0);
+  const existingNames = new Set(items.map((i) => i.name.trim().toLowerCase()));
+  const availableSuggestions = suggestions.filter((name) => !existingNames.has(name.toLowerCase()));
 
   return (
     <section className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="font-display text-base font-semibold text-ink">{title}</h2>
-        {!adding && (
-          <button
-            onClick={() => {
-              setPrefillName("");
-              setAdding(true);
-            }}
-            className={addButtonClass(optional)}
-          >
-            + Add
-          </button>
-        )}
-      </div>
+      <h2 className="font-display text-base font-semibold text-ink">Monthly Expenses</h2>
 
-      {adding && (
-        <AddForm
-          initialName={prefillName}
-          onSave={(name, amount) => {
-            onAdd(name, amount);
-            setAdding(false);
-          }}
-          onCancel={() => setAdding(false)}
-        />
+      {!adding && availableSuggestions.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {availableSuggestions.map((name) => (
+            <button
+              key={name}
+              onClick={() => openAdd(name)}
+              className="rounded-full border border-hairline px-3 py-1 text-xs font-medium text-muted transition-colors hover:border-accent hover:text-accent"
+            >
+              + {name}
+            </button>
+          ))}
+        </div>
       )}
 
       {items.length === 0 && !adding && (
-        <>
-          <p className="text-sm text-muted">No items yet.</p>
-          {suggestions && suggestions.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {suggestions.map((name) => (
-                <button
-                  key={name}
-                  onClick={() => {
-                    setPrefillName(name);
-                    setAdding(true);
-                  }}
-                  className="rounded-full border border-hairline px-3 py-1 text-xs font-medium text-muted transition-colors hover:border-accent hover:text-accent"
-                >
-                  + {name}
-                </button>
-              ))}
-            </div>
-          )}
-        </>
+        <p className="text-sm text-muted">No items yet.</p>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-hairline bg-white">
-        {items.map((item, i) =>
-          editingId === item.id ? (
-            <div key={item.id} className="space-y-3 border-hairline p-4" style={{ borderTopWidth: i > 0 ? 1 : 0 }}>
-              <div className="grid grid-cols-2 gap-3">
-                <input
-                  autoFocus
-                  value={editState.name}
-                  onChange={(e) => setEditState((s) => ({ ...s, name: e.target.value }))}
-                  className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-ink outline-none focus:border-accent"
-                />
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={editState.amount}
-                  onChange={(e) => setEditState((s) => ({ ...s, amount: e.target.value }))}
-                  className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-ink outline-none focus:border-accent"
-                />
+      {(items.length > 0 || adding) && (
+        <div className="divide-y divide-hairline overflow-hidden rounded-xl border border-hairline bg-white">
+          {items.map((item) =>
+            editingId === item.id ? (
+              <form
+                key={item.id}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  saveEdit(item);
+                }}
+                className="space-y-3 p-4"
+              >
+                <div className="grid grid-cols-2 gap-3">
+                  <input
+                    autoFocus
+                    value={editState.name}
+                    onChange={(e) => setEditState((s) => ({ ...s, name: e.target.value }))}
+                    className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={editState.amount}
+                    onChange={(e) => setEditState((s) => ({ ...s, amount: e.target.value }))}
+                    className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingId(null)}
+                    className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-muted hover:text-ink"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <div
+                key={item.id}
+                className="group flex items-center justify-between px-4 py-3 transition-colors hover:bg-paper/60"
+              >
+                <span className="text-sm font-medium text-ink">{item.name}</span>
+                <div className="flex items-center gap-4">
+                  <span className="font-mono text-sm tabular-nums text-muted">{eur(item.amount, 2)}/mo</span>
+                  <button
+                    onClick={() => startEdit(item)}
+                    className="text-sm text-accent opacity-0 transition-opacity group-hover:opacity-100 hover:text-amber-700"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(item)}
+                    className="text-sm text-negative opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-700"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => saveEdit(item)}
-                  className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
-                >
-                  Save
-                </button>
-                <button
-                  onClick={() => setEditingId(null)}
-                  className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-muted hover:text-ink"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
+            ),
+          )}
+
+          {adding ? (
+            <AddForm
+              inline
+              initialName={prefillName}
+              onSave={(name, amount) => {
+                onAdd(name, amount);
+                setAdding(false);
+              }}
+              onCancel={() => setAdding(false)}
+            />
           ) : (
-            <div
-              key={item.id}
-              className="group flex items-center justify-between px-4 py-3 transition-colors hover:bg-paper/60"
-              style={{ borderTopWidth: i > 0 ? 1 : 0, borderColor: "var(--color-hairline)" }}
-            >
-              <span className="text-sm font-medium text-ink">{item.name}</span>
-              <div className="flex items-center gap-4">
-                <span className="font-mono text-sm tabular-nums text-muted">
-                  {eur(item.amount, 2)}
-                  {unit}
-                </span>
-                <button
-                  onClick={() => startEdit(item)}
-                  className="text-sm text-accent opacity-0 transition-opacity group-hover:opacity-100 hover:text-amber-700"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => handleDelete(item)}
-                  className="text-sm text-negative opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-700"
-                >
-                  Delete
-                </button>
-              </div>
+            items.length > 0 && (
+              <button
+                onClick={() => openAdd()}
+                className="w-full px-4 py-3 text-left text-sm text-muted transition-colors hover:text-accent"
+              >
+                + Add expense
+              </button>
+            )
+          )}
+
+          {items.length > 0 && (
+            <div className="flex items-center justify-between bg-paper/60 px-4 py-3">
+              <span className="text-sm font-medium text-ink">Total</span>
+              <span className="font-mono text-sm font-medium tabular-nums text-ink">{eur(total, 2)}/mo</span>
             </div>
-          ),
-        )}
-        {items.length > 0 && (
-          <div
-            className="flex items-center justify-between bg-paper/60 px-4 py-3"
-            style={{ borderTopWidth: 1, borderColor: "var(--color-hairline)" }}
-          >
-            <span className="text-sm font-medium text-ink">Total</span>
-            <span className="font-mono text-sm font-medium tabular-nums text-ink">
-              {eur(total, 2)}
-              {unit}
-            </span>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }
@@ -319,77 +318,232 @@ function StartingPointCard({
   );
 }
 
-function OneTimeSection<T extends Expense | Income>({
-  title,
+// A single item list used inside CashFlowsCard's tabs: recurring items get
+// inline edit, one-time items don't. No heading — the active tab is the label.
+function SimpleItemList<T extends Expense | Income>({
   items,
-  optional,
+  unit,
+  addLabel,
+  editable,
   onAdd,
+  onUpdate,
   onDelete,
 }: {
-  title: string;
   items: T[];
-  optional?: boolean;
+  unit: string;
+  addLabel: string;
+  editable: boolean;
   onAdd: (name: string, amount: number) => void;
+  onUpdate?: (id: string, name: string, amount: number) => void;
   onDelete: (id: string) => void;
 }) {
   const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editState, setEditState] = useState<ItemEditState>({ name: "", amount: "" });
+
+  function startEdit(item: T) {
+    setEditingId(item.id);
+    setEditState({ name: item.name, amount: String(item.amount) });
+  }
+
+  function saveEdit(item: T) {
+    onUpdate?.(item.id, editState.name.trim() || item.name, parseFloat(editState.amount) || 0);
+    setEditingId(null);
+  }
+
+  function handleDelete(item: T) {
+    if (window.confirm(`Delete "${item.name}"? This affects the runway simulation.`)) {
+      onDelete(item.id);
+    }
+  }
 
   const total = items.reduce((sum, item) => sum + item.amount, 0);
 
   return (
-    <section className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 className="font-display text-base font-semibold text-ink">{title}</h2>
-        {!adding && (
-          <button onClick={() => setAdding(true)} className={addButtonClass(optional)}>
-            + Add
-          </button>
-        )}
-      </div>
-
-      {adding && (
-        <AddForm
-          onSave={(name, amount) => {
-            onAdd(name, amount);
-            setAdding(false);
-          }}
-          onCancel={() => setAdding(false)}
-        />
-      )}
-
-      {items.length === 0 && !adding && (
-        <p className="text-sm text-muted">No items yet.</p>
-      )}
-
-      <div className="overflow-hidden rounded-xl border border-hairline bg-white">
-        {items.map((item, i) => (
+    <div className="divide-y divide-hairline overflow-hidden rounded-xl border border-hairline bg-white">
+      {items.map((item) =>
+        editable && editingId === item.id ? (
+          <form
+            key={item.id}
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveEdit(item);
+            }}
+            className="space-y-3 p-4"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                autoFocus
+                value={editState.name}
+                onChange={(e) => setEditState((s) => ({ ...s, name: e.target.value }))}
+                className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-ink outline-none focus:border-accent"
+              />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={editState.amount}
+                onChange={(e) => setEditState((s) => ({ ...s, amount: e.target.value }))}
+                className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-ink outline-none focus:border-accent"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditingId(null)}
+                className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-muted hover:text-ink"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : (
           <div
             key={item.id}
             className="group flex items-center justify-between px-4 py-3 transition-colors hover:bg-paper/60"
-            style={{ borderTopWidth: i > 0 ? 1 : 0, borderColor: "var(--color-hairline)" }}
           >
             <span className="text-sm font-medium text-ink">{item.name}</span>
             <div className="flex items-center gap-4">
-              <span className="font-mono text-sm tabular-nums text-muted">{eur(item.amount, 2)}</span>
+              <span className="font-mono text-sm tabular-nums text-muted">
+                {eur(item.amount, 2)}
+                {unit}
+              </span>
+              {editable && (
+                <button
+                  onClick={() => startEdit(item)}
+                  className="text-sm text-accent opacity-0 transition-opacity group-hover:opacity-100 hover:text-amber-700"
+                >
+                  Edit
+                </button>
+              )}
               <button
-                onClick={() => onDelete(item.id)}
+                onClick={() => handleDelete(item)}
                 className="text-sm text-negative opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-700"
               >
                 Delete
               </button>
             </div>
           </div>
-        ))}
-        {items.length > 0 && (
-          <div
-            className="flex items-center justify-between bg-paper/60 px-4 py-3"
-            style={{ borderTopWidth: 1, borderColor: "var(--color-hairline)" }}
+        ),
+      )}
+
+      {adding ? (
+        <AddForm
+          inline
+          onSave={(name, amount) => {
+            onAdd(name, amount);
+            setAdding(false);
+          }}
+          onCancel={() => setAdding(false)}
+        />
+      ) : (
+        <button
+          onClick={() => setAdding(true)}
+          className="w-full px-4 py-3 text-left text-sm text-muted transition-colors hover:text-accent"
+        >
+          + {addLabel}
+        </button>
+      )}
+
+      {items.length > 0 && (
+        <div className="flex items-center justify-between bg-paper/60 px-4 py-3">
+          <span className="text-sm font-medium text-ink">Total</span>
+          <span className="font-mono text-sm font-medium tabular-nums text-ink">
+            {eur(total, 2)}
+            {unit}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type CashFlowTab = "income" | "oneTimeExpense" | "oneTimeIncome";
+
+function CashFlowsCard({
+  recurringIncomes,
+  oneTimeExpenses,
+  oneTimeIncomes,
+  onAddIncome,
+  onUpdateIncome,
+  onDeleteIncome,
+  onAddOneTimeExpense,
+  onDeleteOneTimeExpense,
+  onAddOneTimeIncome,
+  onDeleteOneTimeIncome,
+}: {
+  recurringIncomes: Income[];
+  oneTimeExpenses: Expense[];
+  oneTimeIncomes: Income[];
+  onAddIncome: (name: string, amount: number) => void;
+  onUpdateIncome: (id: string, name: string, amount: number) => void;
+  onDeleteIncome: (id: string) => void;
+  onAddOneTimeExpense: (name: string, amount: number) => void;
+  onDeleteOneTimeExpense: (id: string) => void;
+  onAddOneTimeIncome: (name: string, amount: number) => void;
+  onDeleteOneTimeIncome: (id: string) => void;
+}) {
+  const [tab, setTab] = useState<CashFlowTab>("income");
+
+  const tabs: { key: CashFlowTab; label: string }[] = [
+    { key: "income", label: "Monthly Income" },
+    { key: "oneTimeExpense", label: "One-time Expenses" },
+    { key: "oneTimeIncome", label: "One-time Income" },
+  ];
+
+  return (
+    <section className="space-y-3">
+      <div className="inline-flex flex-wrap gap-1 rounded-lg border border-hairline bg-white p-1">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              tab === t.key ? "bg-paper text-ink" : "text-muted hover:text-ink"
+            }`}
           >
-            <span className="text-sm font-medium text-ink">Total</span>
-            <span className="font-mono text-sm font-medium tabular-nums text-ink">{eur(total, 2)}</span>
-          </div>
-        )}
+            {t.label}
+          </button>
+        ))}
       </div>
+
+      {tab === "income" && (
+        <SimpleItemList
+          items={recurringIncomes}
+          unit="/mo"
+          addLabel="Add income"
+          editable
+          onAdd={onAddIncome}
+          onUpdate={onUpdateIncome}
+          onDelete={onDeleteIncome}
+        />
+      )}
+      {tab === "oneTimeExpense" && (
+        <SimpleItemList
+          items={oneTimeExpenses}
+          unit=""
+          addLabel="Add expense"
+          editable={false}
+          onAdd={onAddOneTimeExpense}
+          onDelete={onDeleteOneTimeExpense}
+        />
+      )}
+      {tab === "oneTimeIncome" && (
+        <SimpleItemList
+          items={oneTimeIncomes}
+          unit=""
+          addLabel="Add income"
+          editable={false}
+          onAdd={onAddOneTimeIncome}
+          onDelete={onDeleteOneTimeIncome}
+        />
+      )}
     </section>
   );
 }
@@ -645,9 +799,7 @@ export default function Overview() {
             onUpdate={updateSettings}
           />
 
-          <RecurringSection
-            title="Monthly Expenses"
-            unit="/mo"
+          <MonthlyExpensesCard
             items={recurringExpenses}
             suggestions={["Rent", "Food", "Transport", "Utilities", "Entertainment", "Other"]}
             onAdd={(name, amount) => addExpense({ name, amount, type: "recurringExpense" })}
@@ -655,30 +807,17 @@ export default function Overview() {
             onDelete={(id) => deleteExpense(id)}
           />
 
-          <RecurringSection
-            optional
-            title="Monthly Income"
-            unit="/mo"
-            items={recurringIncomes}
-            onAdd={(name, amount) => addIncome({ name, amount, type: "recurringIncome" })}
-            onUpdate={(id, name, amount) => updateIncome(id, { name, amount })}
-            onDelete={(id) => deleteIncome(id)}
-          />
-
-          <OneTimeSection
-            optional
-            title="One-time Expenses"
-            items={oneTimeExpenses}
-            onAdd={(name, amount) => addExpense({ name, amount, type: "oneTimeExpense" })}
-            onDelete={(id) => deleteExpense(id)}
-          />
-
-          <OneTimeSection
-            optional
-            title="One-time Income"
-            items={oneTimeIncomes}
-            onAdd={(name, amount) => addIncome({ name, amount, type: "oneTimeIncome" })}
-            onDelete={(id) => deleteIncome(id)}
+          <CashFlowsCard
+            recurringIncomes={recurringIncomes}
+            oneTimeExpenses={oneTimeExpenses}
+            oneTimeIncomes={oneTimeIncomes}
+            onAddIncome={(name, amount) => addIncome({ name, amount, type: "recurringIncome" })}
+            onUpdateIncome={(id, name, amount) => updateIncome(id, { name, amount })}
+            onDeleteIncome={(id) => deleteIncome(id)}
+            onAddOneTimeExpense={(name, amount) => addExpense({ name, amount, type: "oneTimeExpense" })}
+            onDeleteOneTimeExpense={(id) => deleteExpense(id)}
+            onAddOneTimeIncome={(name, amount) => addIncome({ name, amount, type: "oneTimeIncome" })}
+            onDeleteOneTimeIncome={(id) => deleteIncome(id)}
           />
         </div>
       </div>
