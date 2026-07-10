@@ -11,7 +11,6 @@ export default function Settings() {
   const expenses = useStore((s) => s.expenses);
   const incomes = useStore((s) => s.incomes);
   const storageUnavailable = useStore((s) => s.storageUnavailable);
-  const updateSettings = useStore((s) => s.updateSettings);
   const importAll = useStore((s) => s.importAll);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -49,8 +48,8 @@ export default function Settings() {
   }
 
   return (
-    <div className="space-y-8">
-      <h1 className="text-2xl font-semibold">Settings</h1>
+    <div className="mx-auto max-w-4xl space-y-8 px-4 py-8 md:py-12">
+      <h1 className="font-display text-2xl font-semibold text-ink">Settings</h1>
 
       {storageUnavailable && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -58,35 +57,7 @@ export default function Settings() {
         </div>
       )}
 
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Starting balance (EUR)
-          </label>
-          <input
-            type="number"
-            min="0"
-            step="0.01"
-            value={settings.startingBalance}
-            onChange={(e) => updateSettings({ startingBalance: parseFloat(e.target.value) || 0 })}
-            className="mt-1 block w-48 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Starting month
-          </label>
-          <input
-            type="month"
-            value={settings.startingMonth}
-            onChange={(e) => updateSettings({ startingMonth: e.target.value })}
-            className="mt-1 block w-48 rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
-          />
-        </div>
-      </div>
-
-      <div className="space-y-3 border-t border-gray-100 pt-6">
+      <div className="space-y-3">
         <p className="text-sm font-medium text-gray-700">Data</p>
 
         <button

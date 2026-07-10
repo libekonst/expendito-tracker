@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import Dashboard from "./Dashboard";
+import Overview from "./Overview";
 import { store } from "../store";
 
 // Pin time so currentMonth() and daysUntil() are deterministic
@@ -43,7 +43,7 @@ vi.mock("recharts", async () => {
 function renderDashboard() {
   return render(
     <MemoryRouter>
-      <Dashboard />
+      <Overview />
     </MemoryRouter>,
   );
 }
@@ -58,7 +58,6 @@ beforeEach(() => {
     expenses: [{ id: "e1", name: "Rent", type: "recurringExpense", amount: 500 }],
     incomes: [],
     settings: { startingBalance: 10000, startingMonth: NOW },
-    wizardCompleted: true,
     storageUnavailable: false,
   });
 });
@@ -102,7 +101,7 @@ describe("waiting period countdown", () => {
     });
     renderDashboard();
     expect(screen.getByText(/days until runway starts/)).toBeInTheDocument();
-    expect(screen.getByText(/starts August 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/August 2026/)).toBeInTheDocument();
   });
 });
 
@@ -157,8 +156,9 @@ describe("total monthly expenses shown", () => {
       settings: { startingBalance: 10000, startingMonth: NOW },
     });
     renderDashboard();
-    // Should show €500/month (only recurring, not the one-time €1000)
-    expect(screen.getByText(/Gross monthly expenses:.*€500\/month/)).toBeInTheDocument();
+    // Should show €500/mo (only recurring, not the one-time €1000)
+    expect(screen.getByText("Gross monthly expenses")).toBeInTheDocument();
+    expect(screen.getAllByText("€500/mo").length).toBeGreaterThan(0);
   });
 });
 
@@ -190,5 +190,64 @@ describe("chart has waitingBalance during waiting period", () => {
     const data = capturedLineChartData[0] as Array<{ waitingBalance?: number }>;
     const withWaiting = data.filter((d) => d.waitingBalance !== undefined);
     expect(withWaiting.length).toBeGreaterThan(0);
+  });
+});
+
+// ─── Hero states ────────────────────────────────────────────────────────────
+
+describe("empty onboarding hero", () => {
+  it("shows the glass prompt and no chart when there are no expenses or incomes", () => {
+    store.setState({
+      expenses: [],
+      incomes: [],
+      settings: { startingBalance: 0, startingMonth: NOW },
+    });
+    renderDashboard();
+    expect(screen.getByText("Add your numbers to see your runway")).toBeInTheDocument();
+    expect(document.querySelector('[data-testid="line-chart"]')).toBeNull();
+  });
+});
+
+describe("no-burn hero", () => {
+  it("shows the No burn message and no chart when income covers expenses", () => {
+    store.setState({
+      expenses: [{ id: "e1", name: "Rent", type: "recurringExpense", amount: 500 }],
+      incomes: [{ id: "i1", name: "Salary", type: "recurringIncome", amount: 800 }],
+      settings: { startingBalance: 10000, startingMonth: NOW },
+    });
+    renderDashboard();
+    expect(screen.getByText("No burn")).toBeInTheDocument();
+    expect(
+      screen.getByText("Your income covers your expenses — savings hold steady."),
+    ).toBeInTheDocument();
+    expect(document.querySelector('[data-testid="line-chart"]')).toBeNull();
+  });
+});
+
+describe("normal hero", () => {
+  it("does not show empty or no-burn copy when there is a positive burn", () => {
+    renderDashboard();
+    expect(screen.queryByText("Add your numbers to see your runway")).not.toBeInTheDocument();
+    expect(screen.queryByText("No burn")).not.toBeInTheDocument();
+  });
+});
+
+// ─── Starting point card ──────────────────────────────────────────────────────
+
+describe("starting point card", () => {
+  it("shows the current starting balance in the field", () => {
+    renderDashboard();
+    const balanceField = document.querySelector('input[placeholder="e.g. 20000"]') as HTMLInputElement;
+    expect(balanceField).not.toBeNull();
+    expect(balanceField.value).toBe("10000");
+  });
+
+  it("shows an empty balance field with placeholder when startingBalance is 0", () => {
+    store.setState({
+      settings: { startingBalance: 0, startingMonth: NOW },
+    });
+    renderDashboard();
+    const balanceField = document.querySelector('input[placeholder="e.g. 20000"]') as HTMLInputElement;
+    expect(balanceField.value).toBe("");
   });
 });

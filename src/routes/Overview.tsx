@@ -1,0 +1,826 @@
+import { useMemo, useState } from "react";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ReferenceLine,
+  ResponsiveContainer,
+} from "recharts";
+import { useStore } from "../store";
+import {
+  calculateRunway,
+  computeMonthlyNetCost,
+  computeEffectiveBalance,
+} from "../domain/runwayEngine";
+import { addMonth, currentMonth } from "../domain/dateUtils";
+import type { Expense, Income } from "../domain/types";
+
+type ChartPoint = {
+  month: string;
+  waitingBalance?: number; // only set for waiting-period months
+  balance?: number; // only set for runway months (startingMonth to endMonth)
+};
+
+type ItemEditState = {
+  name: string;
+  amount: string;
+};
+
+function daysUntil(yyyymm: string): number {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const [y, m] = yyyymm.split("-").map(Number);
+  const target = new Date(y, m - 1, 1);
+  return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function formatMonth(yyyymm: string, opts: Intl.DateTimeFormatOptions): string {
+  const [y, m] = yyyymm.split("-");
+  return new Date(Number(y), Number(m) - 1).toLocaleString("en-GB", opts);
+}
+
+function eur(n: number, digits = 0): string {
+  return `€${n.toLocaleString("de-DE", { minimumFractionDigits: digits })}`;
+}
+
+// ── Shared editable-list sub-components ─────────────────────────────────────
+
+function AddForm({
+  initialName = "",
+  inline,
+  onSave,
+  onCancel,
+}: {
+  initialName?: string;
+  inline?: boolean;
+  onSave: (name: string, amount: number) => void;
+  onCancel: () => void;
+}) {
+  const [state, setState] = useState<ItemEditState>({ name: initialName, amount: "" });
+
+  function handleSave() {
+    if (!state.name.trim()) return;
+    onSave(state.name.trim(), parseFloat(state.amount) || 0);
+    setState({ name: "", amount: "" });
+  }
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        handleSave();
+      }}
+      className={inline ? "space-y-3 p-4" : "mt-3 space-y-3 rounded-xl border border-hairline bg-white p-4"}
+    >
+      <div className="grid grid-cols-2 gap-3">
+        <input
+          autoFocus={!initialName}
+          placeholder="Name"
+          value={state.name}
+          onChange={(e) => setState((s) => ({ ...s, name: e.target.value }))}
+          className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent"
+        />
+        <input
+          autoFocus={!!initialName}
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="Amount (EUR)"
+          value={state.amount}
+          onChange={(e) => setState((s) => ({ ...s, amount: e.target.value }))}
+          className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent"
+        />
+      </div>
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-amber-700"
+        >
+          Save
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-muted transition-colors hover:text-ink"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function MonthlyExpensesCard({
+  items,
+  suggestions,
+  onAdd,
+  onUpdate,
+  onDelete,
+}: {
+  items: Expense[];
+  suggestions: string[];
+  onAdd: (name: string, amount: number) => void;
+  onUpdate: (id: string, name: string, amount: number) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [prefillName, setPrefillName] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editState, setEditState] = useState<ItemEditState>({ name: "", amount: "" });
+
+  function openAdd(name = "") {
+    setPrefillName(name);
+    setAdding(true);
+  }
+
+  function startEdit(item: Expense) {
+    setEditingId(item.id);
+    setEditState({ name: item.name, amount: String(item.amount) });
+  }
+
+  function saveEdit(item: Expense) {
+    onUpdate(item.id, editState.name.trim() || item.name, parseFloat(editState.amount) || 0);
+    setEditingId(null);
+  }
+
+  function handleDelete(item: Expense) {
+    if (window.confirm(`Delete "${item.name}"? This affects the runway simulation.`)) {
+      onDelete(item.id);
+    }
+  }
+
+  const total = items.reduce((sum, item) => sum + item.amount, 0);
+  const existingNames = new Set(items.map((i) => i.name.trim().toLowerCase()));
+  const availableSuggestions = suggestions.filter((name) => !existingNames.has(name.toLowerCase()));
+
+  return (
+    <section className="space-y-3">
+      <h2 className="font-display text-base font-semibold text-ink">Monthly Expenses</h2>
+
+      {availableSuggestions.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {availableSuggestions.map((name) => (
+            <button
+              key={name}
+              onClick={() => openAdd(name)}
+              className="rounded-full border border-hairline px-3 py-1 text-xs font-medium text-muted transition-colors hover:border-accent hover:text-accent"
+            >
+              + {name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="overflow-hidden rounded-xl border border-hairline bg-white">
+        {items.map((item) =>
+          editingId === item.id ? (
+            <form
+              key={item.id}
+              onSubmit={(e) => {
+                e.preventDefault();
+                saveEdit(item);
+              }}
+              className="space-y-3 p-4"
+            >
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  autoFocus
+                  value={editState.name}
+                  onChange={(e) => setEditState((s) => ({ ...s, name: e.target.value }))}
+                  className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editState.amount}
+                  onChange={(e) => setEditState((s) => ({ ...s, amount: e.target.value }))}
+                  className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-ink outline-none focus:border-accent"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingId(null)}
+                  className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-muted hover:text-ink"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div
+              key={item.id}
+              className="group flex items-center gap-2 px-4 py-3 transition-colors hover:bg-paper/60"
+            >
+              <span className="shrink-0 text-sm font-medium text-ink">{item.name}</span>
+              <span className="ledger-leader" />
+              <div className="flex shrink-0 items-center gap-4">
+                <span className="font-mono text-sm tabular-nums text-muted">{eur(item.amount, 2)}/mo</span>
+                <button
+                  onClick={() => startEdit(item)}
+                  className="text-sm text-accent opacity-0 transition-opacity group-hover:opacity-100 hover:text-amber-700"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => handleDelete(item)}
+                  className="text-sm text-negative opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-700"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          ),
+        )}
+
+        {adding ? (
+          <AddForm
+            inline
+            initialName={prefillName}
+            onSave={(name, amount) => {
+              onAdd(name, amount);
+              setAdding(false);
+            }}
+            onCancel={() => setAdding(false)}
+          />
+        ) : (
+          <button
+            onClick={() => openAdd()}
+            className="w-full py-3 pr-4 pl-8 text-left text-xs text-muted transition-colors hover:text-accent"
+          >
+            + Add expense
+          </button>
+        )}
+
+        <div className="flex items-center justify-between border-t border-hairline bg-paper/60 px-4 py-3">
+          <span className="text-sm font-medium text-ink">Total</span>
+          <span className="font-mono text-sm font-medium tabular-nums text-ink">{eur(total, 2)}/mo</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function StartingPointCard({
+  startingBalance,
+  startingMonth,
+  onUpdate,
+}: {
+  startingBalance: number;
+  startingMonth: string;
+  onUpdate: (patch: { startingBalance?: number; startingMonth?: string }) => void;
+}) {
+  return (
+    <section className="space-y-3">
+      <h2 className="font-display text-base font-semibold text-ink">Starting point</h2>
+      <div className="grid grid-cols-2 gap-3 rounded-xl border border-hairline bg-white p-4">
+        <div>
+          <label className="block text-xs font-medium text-muted">Starting balance</label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="e.g. 20000"
+            value={startingBalance === 0 ? "" : startingBalance}
+            onChange={(e) => onUpdate({ startingBalance: parseFloat(e.target.value) || 0 })}
+            className="mt-1 w-full rounded-lg border border-hairline px-3 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-muted">Starting month</label>
+          <input
+            type="month"
+            value={startingMonth}
+            onChange={(e) => onUpdate({ startingMonth: e.target.value })}
+            className="mt-1 w-full rounded-lg border border-hairline px-3 py-1.5 text-sm text-ink outline-none transition-colors focus:border-accent"
+          />
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// A single item list used inside CashFlowsCard's tabs: recurring items get
+// inline edit, one-time items don't. No heading — the active tab is the label.
+function SimpleItemList<T extends Expense | Income>({
+  items,
+  unit,
+  addLabel,
+  editable,
+  onAdd,
+  onUpdate,
+  onDelete,
+}: {
+  items: T[];
+  unit: string;
+  addLabel: string;
+  editable: boolean;
+  onAdd: (name: string, amount: number) => void;
+  onUpdate?: (id: string, name: string, amount: number) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editState, setEditState] = useState<ItemEditState>({ name: "", amount: "" });
+
+  function startEdit(item: T) {
+    setEditingId(item.id);
+    setEditState({ name: item.name, amount: String(item.amount) });
+  }
+
+  function saveEdit(item: T) {
+    onUpdate?.(item.id, editState.name.trim() || item.name, parseFloat(editState.amount) || 0);
+    setEditingId(null);
+  }
+
+  function handleDelete(item: T) {
+    if (window.confirm(`Delete "${item.name}"? This affects the runway simulation.`)) {
+      onDelete(item.id);
+    }
+  }
+
+  const total = items.reduce((sum, item) => sum + item.amount, 0);
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-hairline bg-white">
+      {items.map((item) =>
+        editable && editingId === item.id ? (
+          <form
+            key={item.id}
+            onSubmit={(e) => {
+              e.preventDefault();
+              saveEdit(item);
+            }}
+            className="space-y-3 p-4"
+          >
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                autoFocus
+                value={editState.name}
+                onChange={(e) => setEditState((s) => ({ ...s, name: e.target.value }))}
+                className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-ink outline-none focus:border-accent"
+              />
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={editState.amount}
+                onChange={(e) => setEditState((s) => ({ ...s, amount: e.target.value }))}
+                className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-ink outline-none focus:border-accent"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-700"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditingId(null)}
+                className="rounded-lg border border-hairline px-3 py-1.5 text-sm text-muted hover:text-ink"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div
+            key={item.id}
+            className="group flex items-center gap-2 px-4 py-3 transition-colors hover:bg-paper/60"
+          >
+            <span className="shrink-0 text-sm font-medium text-ink">{item.name}</span>
+            <span className="ledger-leader" />
+            <div className="flex shrink-0 items-center gap-4">
+              <span className="font-mono text-sm tabular-nums text-muted">
+                {eur(item.amount, 2)}
+                {unit}
+              </span>
+              {editable && (
+                <button
+                  onClick={() => startEdit(item)}
+                  className="text-sm text-accent opacity-0 transition-opacity group-hover:opacity-100 hover:text-amber-700"
+                >
+                  Edit
+                </button>
+              )}
+              <button
+                onClick={() => handleDelete(item)}
+                className="text-sm text-negative opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        ),
+      )}
+
+      {adding ? (
+        <AddForm
+          inline
+          onSave={(name, amount) => {
+            onAdd(name, amount);
+            setAdding(false);
+          }}
+          onCancel={() => setAdding(false)}
+        />
+      ) : (
+        <button
+          onClick={() => setAdding(true)}
+          className="w-full py-3 pr-4 pl-8 text-left text-xs text-muted transition-colors hover:text-accent"
+        >
+          + {addLabel}
+        </button>
+      )}
+
+      {items.length > 0 && (
+        <div className="flex items-center justify-between border-t border-hairline bg-paper/60 px-4 py-3">
+          <span className="text-sm font-medium text-ink">Total</span>
+          <span className="font-mono text-sm font-medium tabular-nums text-ink">
+            {eur(total, 2)}
+            {unit}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+type CashFlowTab = "income" | "oneTimeExpense" | "oneTimeIncome";
+
+function CashFlowsCard({
+  recurringIncomes,
+  oneTimeExpenses,
+  oneTimeIncomes,
+  onAddIncome,
+  onUpdateIncome,
+  onDeleteIncome,
+  onAddOneTimeExpense,
+  onDeleteOneTimeExpense,
+  onAddOneTimeIncome,
+  onDeleteOneTimeIncome,
+}: {
+  recurringIncomes: Income[];
+  oneTimeExpenses: Expense[];
+  oneTimeIncomes: Income[];
+  onAddIncome: (name: string, amount: number) => void;
+  onUpdateIncome: (id: string, name: string, amount: number) => void;
+  onDeleteIncome: (id: string) => void;
+  onAddOneTimeExpense: (name: string, amount: number) => void;
+  onDeleteOneTimeExpense: (id: string) => void;
+  onAddOneTimeIncome: (name: string, amount: number) => void;
+  onDeleteOneTimeIncome: (id: string) => void;
+}) {
+  const [tab, setTab] = useState<CashFlowTab>("income");
+
+  const tabs: { key: CashFlowTab; label: string }[] = [
+    { key: "income", label: "Monthly Income" },
+    { key: "oneTimeExpense", label: "One-time Expenses" },
+    { key: "oneTimeIncome", label: "One-time Income" },
+  ];
+
+  return (
+    <section className="space-y-3">
+      <h2 className="font-display text-base font-semibold text-ink">Other Income &amp; Expenses</h2>
+
+      <div className="flex flex-wrap gap-6 border-b border-hairline">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`-mb-px border-b-2 pb-2 text-sm font-medium transition-colors ${
+              tab === t.key ? "border-accent text-ink" : "border-transparent text-muted hover:text-ink"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "income" && (
+        <SimpleItemList
+          items={recurringIncomes}
+          unit="/mo"
+          addLabel="Add income"
+          editable
+          onAdd={onAddIncome}
+          onUpdate={onUpdateIncome}
+          onDelete={onDeleteIncome}
+        />
+      )}
+      {tab === "oneTimeExpense" && (
+        <SimpleItemList
+          items={oneTimeExpenses}
+          unit=""
+          addLabel="Add expense"
+          editable={false}
+          onAdd={onAddOneTimeExpense}
+          onDelete={onDeleteOneTimeExpense}
+        />
+      )}
+      {tab === "oneTimeIncome" && (
+        <SimpleItemList
+          items={oneTimeIncomes}
+          unit=""
+          addLabel="Add income"
+          editable={false}
+          onAdd={onAddOneTimeIncome}
+          onDelete={onDeleteOneTimeIncome}
+        />
+      )}
+    </section>
+  );
+}
+
+// ── Overview route (Dashboard + Plan, combined) ─────────────────────────────
+
+export default function Overview() {
+  const settings = useStore((s) => s.settings);
+  const expenses = useStore((s) => s.expenses);
+  const incomes = useStore((s) => s.incomes);
+  const storageUnavailable = useStore((s) => s.storageUnavailable);
+
+  const addExpense = useStore((s) => s.addExpense);
+  const updateExpense = useStore((s) => s.updateExpense);
+  const deleteExpense = useStore((s) => s.deleteExpense);
+  const addIncome = useStore((s) => s.addIncome);
+  const updateIncome = useStore((s) => s.updateIncome);
+  const deleteIncome = useStore((s) => s.deleteIncome);
+  const updateSettings = useStore((s) => s.updateSettings);
+
+  const runway = useMemo(
+    () => calculateRunway(settings, expenses, incomes),
+    [settings, expenses, incomes],
+  );
+
+  const grossMonthlyExpenses = useMemo(() => computeMonthlyNetCost(expenses, []), [expenses]);
+  const netMonthlyBurn = useMemo(
+    () => computeMonthlyNetCost(expenses, incomes),
+    [expenses, incomes],
+  );
+  const effectiveBalance = useMemo(
+    () => computeEffectiveBalance(settings.startingBalance, incomes, expenses),
+    [settings.startingBalance, incomes, expenses],
+  );
+
+  const cm = currentMonth();
+  const isFutureStart = settings.startingMonth > cm;
+  const daysUntilBurning = isFutureStart ? daysUntil(settings.startingMonth) : null;
+
+  const allChartData = useMemo<ChartPoint[]>(() => {
+    const points: ChartPoint[] = [];
+
+    if (isFutureStart) {
+      let month = cm;
+      while (month < settings.startingMonth) {
+        points.push({
+          month: formatMonth(month, { month: "short", year: "2-digit" }),
+          waitingBalance: settings.startingBalance,
+        });
+        month = addMonth(month);
+      }
+    }
+
+    for (const m of runway.months) {
+      const balance = Math.round(m.closingBalance);
+      const bridgePoint =
+        isFutureStart && m.month === settings.startingMonth
+          ? { waitingBalance: Math.round(runway.effectiveBalance) }
+          : {};
+      points.push({
+        month: formatMonth(m.month, { month: "short", year: "2-digit" }),
+        ...bridgePoint,
+        balance,
+      });
+    }
+
+    return points;
+  }, [cm, isFutureStart, settings.startingMonth, settings.startingBalance, runway.effectiveBalance, runway.months]);
+
+  const lastChartPoint = allChartData.length > 0 ? allChartData[allChartData.length - 1] : null;
+
+  const emptyOnboarding = expenses.length === 0 && incomes.length === 0;
+  const noBurn = !emptyOnboarding && netMonthlyBurn <= 0;
+  const showChart = !emptyOnboarding && !noBurn && allChartData.length > 0;
+
+  const recurringExpenses = expenses.filter((e) => e.type === "recurringExpense");
+  const oneTimeExpenses = expenses.filter((e) => e.type === "oneTimeExpense");
+  const recurringIncomes = incomes.filter((i) => i.type === "recurringIncome");
+  const oneTimeIncomes = incomes.filter((i) => i.type === "oneTimeIncome");
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 py-8 md:py-12">
+      {storageUnavailable && (
+        <div className="mb-8 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          localStorage is unavailable — data will not persist across page reloads.
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-10 lg:grid-cols-[380px_1fr] lg:gap-14">
+        {/* ── Left: simulation output, sticky ── */}
+        <div className="lg:sticky lg:top-10 lg:self-start">
+          <div className="space-y-8 rounded-2xl border border-hairline bg-white p-6 md:p-7">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted">Runway</p>
+
+              {emptyOnboarding ? (
+                <>
+                  <div className="hero-glass mt-4 rounded-2xl px-6 py-9 text-center">
+                    <p className="font-display text-xl font-semibold text-ink">
+                      Add your numbers to see your runway
+                    </p>
+                  </div>
+                  <div className="runway-strip runway-strip--unlit mt-4 w-full" />
+                </>
+              ) : noBurn ? (
+                <>
+                  <p className="font-display mt-2 text-5xl font-semibold text-ink">No burn</p>
+                  <div className="runway-strip mt-4 w-full" />
+                  <p className="mt-3 text-sm text-muted">
+                    Your income covers your expenses — savings hold steady.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-display mt-2 text-7xl font-semibold tabular-nums leading-none text-ink">
+                    {runway.capExceeded ? "120+" : runway.remainingMonths}
+                  </p>
+                  <div className="runway-strip mt-4 w-full" />
+                  <p className="mt-3 text-sm text-muted">
+                    {runway.capExceeded ? "120+" : runway.totalMonths} months total · lasts through{" "}
+                    <span className="font-medium text-ink">
+                      {runway.endMonth ? formatMonth(runway.endMonth, { month: "short", year: "numeric" }) : "—"}
+                    </span>
+                  </p>
+                </>
+              )}
+
+              {isFutureStart && daysUntilBurning !== null && (
+                <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                  {daysUntilBurning} days until runway starts · {formatMonth(settings.startingMonth, { month: "long", year: "numeric" })}
+                </p>
+              )}
+              {runway.overhang && runway.endMonth && (
+                <p className="mt-3 text-xs text-muted">
+                  {eur(runway.overhang.remainingBalance)} remaining · {eur(runway.overhang.shortfall)} short of{" "}
+                  {formatMonth(addMonth(runway.endMonth), { month: "long" })}
+                </p>
+              )}
+            </div>
+
+            {showChart && (
+              <div>
+                <ResponsiveContainer width="100%" height={140}>
+                  <LineChart data={allChartData} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+                    <XAxis
+                      dataKey="month"
+                      tick={{ fontSize: 10, fill: "#9ca3af", fontFamily: "var(--font-mono)" }}
+                      axisLine={false}
+                      tickLine={false}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis hide domain={["auto", "auto"]} />
+                    <Tooltip
+                      formatter={(v: number) => [eur(v), "Balance"]}
+                      contentStyle={{
+                        fontSize: 12,
+                        fontFamily: "var(--font-mono)",
+                        borderRadius: 10,
+                        border: "1px solid var(--color-hairline)",
+                        boxShadow: "0 4px 16px rgba(18,19,26,.08)",
+                      }}
+                    />
+                    <ReferenceLine y={0} stroke="var(--color-hairline)" strokeWidth={1} />
+                    <Line
+                      dataKey="waitingBalance"
+                      stroke="#d1d5db"
+                      strokeWidth={2}
+                      dot={false}
+                      connectNulls
+                      isAnimationActive={false}
+                    />
+                    <Line
+                      dataKey="balance"
+                      stroke="var(--color-accent)"
+                      strokeWidth={2}
+                      dot={
+                        runway.overhang && lastChartPoint
+                          ? (props: { cx?: number; cy?: number; index?: number }): React.ReactElement<SVGElement> => {
+                              const isLast = props.index === allChartData.length - 1;
+                              if (!isLast) return <g />;
+                              const { cx, cy } = props;
+                              return (
+                                <circle
+                                  key="overhang-dot"
+                                  cx={cx}
+                                  cy={cy}
+                                  r={5}
+                                  fill="var(--color-accent)"
+                                  stroke="#fff"
+                                  strokeWidth={2}
+                                />
+                              );
+                            }
+                          : false
+                      }
+                      connectNulls
+                      isAnimationActive={true}
+                      animationDuration={600}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+
+            <div className="space-y-3 border-t border-hairline pt-5">
+              <div>
+                <div className="flex justify-between font-mono text-xs text-muted">
+                  <span>Gross monthly expenses</span>
+                  <span className="tabular-nums text-ink">{eur(grossMonthlyExpenses)}/mo</span>
+                </div>
+                <p className="mt-0.5 text-xs text-muted">Everything you spend, each month.</p>
+              </div>
+              <div>
+                <div className="flex justify-between font-mono text-xs text-muted">
+                  <span>Net monthly burn</span>
+                  <span className="tabular-nums text-ink">{eur(netMonthlyBurn)}/mo</span>
+                </div>
+                <p className="mt-0.5 text-xs text-muted">What actually drains your savings each month.</p>
+              </div>
+            </div>
+
+            <div className="space-y-1.5 border-t border-hairline pt-5 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted">Starting balance</span>
+                <span className="font-mono tabular-nums text-ink">{eur(settings.startingBalance, 2)}</span>
+              </div>
+              {oneTimeIncomes.map((i) => (
+                <div key={i.id} className="flex justify-between">
+                  <span className="text-muted">{i.name}</span>
+                  <span className="font-mono tabular-nums text-positive">+{eur(i.amount, 2)}</span>
+                </div>
+              ))}
+              {oneTimeExpenses.map((e) => (
+                <div key={e.id} className="flex justify-between">
+                  <span className="text-muted">{e.name}</span>
+                  <span className="font-mono tabular-nums text-negative">−{eur(e.amount, 2)}</span>
+                </div>
+              ))}
+              <div className="flex justify-between border-t border-hairline pt-1.5 font-medium">
+                <span className="text-ink">Effective balance</span>
+                <span className="font-mono tabular-nums text-ink">{eur(effectiveBalance, 2)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Right: simulation inputs, editable ── */}
+        <div className="space-y-10">
+          <div>
+            <h1 className="font-display text-2xl font-semibold text-ink">Plan</h1>
+            <p className="mt-1 text-sm text-muted">
+              What goes in and out each month — edit it here and the runway updates instantly.
+            </p>
+          </div>
+
+          <StartingPointCard
+            startingBalance={settings.startingBalance}
+            startingMonth={settings.startingMonth}
+            onUpdate={updateSettings}
+          />
+
+          <MonthlyExpensesCard
+            items={recurringExpenses}
+            suggestions={["Rent", "Food", "Transport", "Utilities", "Entertainment", "Other"]}
+            onAdd={(name, amount) => addExpense({ name, amount, type: "recurringExpense" })}
+            onUpdate={(id, name, amount) => updateExpense(id, { name, amount })}
+            onDelete={(id) => deleteExpense(id)}
+          />
+
+          <CashFlowsCard
+            recurringIncomes={recurringIncomes}
+            oneTimeExpenses={oneTimeExpenses}
+            oneTimeIncomes={oneTimeIncomes}
+            onAddIncome={(name, amount) => addIncome({ name, amount, type: "recurringIncome" })}
+            onUpdateIncome={(id, name, amount) => updateIncome(id, { name, amount })}
+            onDeleteIncome={(id) => deleteIncome(id)}
+            onAddOneTimeExpense={(name, amount) => addExpense({ name, amount, type: "oneTimeExpense" })}
+            onDeleteOneTimeExpense={(id) => deleteExpense(id)}
+            onAddOneTimeIncome={(name, amount) => addIncome({ name, amount, type: "oneTimeIncome" })}
+            onDeleteOneTimeIncome={(id) => deleteIncome(id)}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
