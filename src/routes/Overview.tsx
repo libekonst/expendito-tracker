@@ -568,6 +568,7 @@ export default function Overview() {
     () => computeMonthlyNetCost(expenses, incomes),
     [expenses, incomes],
   );
+  const totalRecurringIncome = grossMonthlyExpenses - netMonthlyBurn;
   const effectiveBalance = useMemo(
     () => computeEffectiveBalance(settings.startingBalance, incomes, expenses),
     [settings.startingBalance, incomes, expenses],
@@ -755,7 +756,11 @@ export default function Overview() {
                   <span>Net monthly burn</span>
                   <span className="tabular-nums text-ink">{eur(netMonthlyBurn)}/mo</span>
                 </div>
-                <p className="mt-0.5 text-xs text-muted">What actually drains your savings each month.</p>
+                <p className="mt-0.5 text-xs text-muted">
+                  {totalRecurringIncome > 0
+                    ? `− ${eur(totalRecurringIncome)}/mo income = what actually drains your savings each month.`
+                    : "What actually drains your savings each month."}
+                </p>
               </div>
             </div>
 
